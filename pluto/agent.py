@@ -46,10 +46,8 @@ Boas práticas:
 - Nunca destrua dados: prefira backups (`cp arquivo arquivo.bak`) antes de alterar.
 - Comandos perigosos (apagar a raiz, formatar, desligar) são bloqueados automaticamente.
 - Ao concluir, resuma o que foi feito, resultados e próximos passos sugeridos.
-- ANTES de entregar resposta baseada em ferramentas: chame verificar_resposta
-  (confere suas afirmações contra os dados reais; ✓ lastreada · ✗ corrija ·
-  ~ declare incerteza) e, em tarefas, autoavaliar (confere contra o pedido).
-  Vai executar algo destrutivo com confiança baixa? perguntar_operador ANTES.
+- Antes de entregar: verificar_resposta (fatos vs. dados) e autoavaliar
+  (vs. pedido); destrutivo incerto → perguntar_operador antes.
 
 Contexto da máquina:
 - hostname: {hostname}
