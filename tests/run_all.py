@@ -10939,7 +10939,7 @@ def T246_autoavaliacao_quadro_auditavel():
 
     # 10) tool nativa (34ª): registrada, spec correta e despacha
     nomes = {t["function"]["name"] for t in TOOLS}
-    assert "autoavaliar" in nomes and len(nomes) == 34
+    assert "autoavaliar" in nomes and len(nomes) == 35  # +tarefa_checkpoint
     spec = [t for t in TOOLS
             if t["function"]["name"] == "autoavaliar"][0]["function"]
     assert set(spec["parameters"]["required"]) == {"pedido", "entrega"}
@@ -10955,6 +10955,160 @@ def T246_autoavaliacao_quadro_auditavel():
         fresh())
     sem = EXECUTORS["autoavaliar"]({"pedido": p3, "entrega": e3}, fresh())
     assert "ENTREGAR" in com and "CORRIGIR" in sem, (com, sem)
+
+
+@case
+def T243_checkpoint_contexto_duravel():
+    """V9.0.0 P1 (T243): CHECKPOINT por tarefa — o estado sobrevive a
+    restart/compactação (escrita atômica, merge sem perder feitos,
+    critérios extraídos do objetivo, retomada a frio) + truncamento
+    REGISTRADO (fim da perda silenciosa de contexto)."""
+    from pluto import contexto
+    from pluto.agent import Agent
+
+    # 1) salvar cria S0001; critérios vêm do objetivo; nota → feitos
+    cfg = fresh()
+    r = contexto.salvar(
+        cfg, objetivo="Crie o relatório com 241 testes e nunca publique "
+                      "segredos", nota="primeiro rascunho pronto")
+    assert r["id"] == "S0001" and r["status"] == "ativa", r
+    assert any("241" in c for c in r["criterios"]), r["criterios"]
+    assert len(r["feitos"]) == 1 and "primeiro rascunho" in r["feitos"][0]
+    assert r["versao"] == 1 and r["truncamentos"] == 0
+
+    # 2) merge: nota ANEXA (não sobrescreve); proximos atualiza; versão++
+    r2 = contexto.salvar(cfg, task_id="S0001", nota="segundo passo",
+                         proximos="revisar e enviar")
+    assert r2["versao"] == 2 and len(r2["feitos"]) == 2, r2
+    assert r2["objetivo"].startswith("Crie o relatório")
+    assert r2["proximos"] == "revisar e enviar"
+
+    # 3) RETOMADA A FRIO: nova Config no MESMO data_dir (= restart)
+    #    reconstrói tudo sem reler chat
+    cfg2 = Config(data_dir=str(cfg.data_dir), mock=True)
+    r3 = contexto.carregar(cfg2, "S0001")
+    assert r3 and r3["versao"] == 2 and len(r3["feitos"]) == 2
+    ret = contexto.retomar(cfg2, "S0001")
+    assert ret["ok"] and "RETOMADA DA TAREFA S0001" in ret["prompt"]
+    assert "segundo passo" in ret["prompt"]
+    assert "JÁ FEITO (não repita)" in ret["prompt"]
+    assert "241" in ret["prompt"]                 # critérios no prompt
+
+    # 4) atomicidade/ilegível: checkpoint corrompido → None honesto,
+    #    não derruba os demais
+    (_state := Path(cfg.data_dir) / "tasks" / "state")
+    (_state / "S0009.json").write_text("{json torto!!!", encoding="utf-8")
+    assert contexto.carregar(cfg, "S0009") is None
+    assert contexto.carregar(cfg, "S0001")["versao"] == 2
+
+    # 5) listar + id automática sequencial; id inválida rejeitada
+    contexto.salvar(cfg, objetivo="outra tarefa qualquer")
+    ativas = contexto.listar(cfg)
+    assert {a["id"] for a in ativas} == {"S0001", "S0002"}, ativas
+    assert "erro" in contexto.salvar(cfg, task_id="id com espaço")
+
+    # 6) retomar sem id → ativa mais recente; fechar tira das ativas
+    assert contexto.retomar(cfg)["tarefa"]["id"] == "S0002"
+    fechada = contexto.fechar(cfg, "S0002", resultado="outra tarefa feita")
+    assert fechada["status"] == "concluida"
+    assert "S0002" not in {a["id"] for a in contexto.listar(cfg)}
+    assert "erro" in contexto.fechar(cfg, "S9999")
+
+    # 7) TRUNCAMENTO REGISTRADO: corrida que compacta deixa linha no
+    #    agent.log (a compactação deixou de ser silenciosa)
+    class FC:
+        simulated = False
+
+        def chat_stream(self, model, messages, tools=None, options=None,
+                        cancel=None, keep_alive=None):
+            yield {"message": {"content": "resumo: tarefa em andamento"}}
+
+    cfgc = fresh(num_ctx=1024)
+    ag = Agent(cfgc)
+    ag.client = FC()
+    hist = [{"role": "user", "content": "TAREFA: construa o app"}]
+    for _ in range(28):
+        hist.append({"role": "assistant", "content": "passo " + "x" * 2000})
+        hist.append({"role": "user", "content": "continue " + "y" * 2000})
+    ag.run(hist, on_event=lambda e: None)
+    log_txt = cfgc.logfile.read_text(encoding="utf-8")
+    assert "compactação" in log_txt and "[contexto]" in log_txt, log_txt[-300:]
+    # histórico curto: NÃO compacta → NÃO registra (custo zero)
+    cfgs = fresh(num_ctx=8192)
+    ag2 = Agent(cfgs)
+    ag2.client = FC()
+    ag2.run([{"role": "user", "content": "oi"}], on_event=lambda e: None)
+    log2 = cfgs.logfile.read_text(encoding="utf-8") if \
+        cfgs.logfile.is_file() else ""
+    assert "compactação" not in log2
+
+
+@case
+def T244_diario_de_trabalho():
+    """V9.0.0 P1 (T244): DIÁRIO DE TRABALHO — 1 linha por tarefa
+    concluída/evento (o quê · quando · task · fonte), consultável por
+    dia (base do briefing da P4) e espelhado no vault Obsidian quando
+    configurado; tool tarefa_checkpoint (35ª) expõe tudo ao agente."""
+    from pluto import contexto
+    from pluto.tools import EXECUTORS, TOOLS
+
+    # 1) diar escreve jsonl; diario_ler devolve na ordem
+    cfg = fresh()
+    r = contexto.diar(cfg, "liberei o CI nos 3 SOs", task_id="S0001",
+                      fonte="checkpoint")
+    assert r.get("ok") and r["task_id"] == "S0001"
+    linhas = contexto.diario_ler(cfg)
+    assert len(linhas) == 1 and "3 SOs" in linhas[0]["o_que"]
+    assert linhas[0]["ts"].startswith(time.strftime("%Y-%m-%d"))
+    assert contexto.diar(cfg, "")["erro"]
+
+    # 2) filtro por dia (a P4 briefing usa dia=hoje)
+    assert contexto.diario_ler(cfg, dia="2000-01-01") == []
+    assert len(contexto.diario_ler(cfg, dia=time.strftime("%Y-%m-%d"))) == 1
+
+    # 3) fechar tarefa → linha AUTOMÁTICA no diário
+    contexto.salvar(cfg, task_id="S0002", objetivo="resolver o bug X")
+    fechada = contexto.fechar(cfg, "S0002", resultado="bug X resolvido")
+    assert fechada["status"] == "concluida"
+    linhas = contexto.diario_ler(cfg)
+    assert len(linhas) == 2
+    assert "bug X resolvido" in linhas[-1]["o_que"]
+    assert linhas[-1]["task_id"] == "S0002"
+
+    # 4) espelho no vault Obsidian (só quando configurado)
+    vdir = Path(tempfile.mkdtemp(prefix="pluto-vault-")) / "MeuVault"
+    vdir.mkdir(parents=True)
+    cfgv = fresh(vault_dir=str(vdir))
+    contexto.diar(cfgv, "linha que vai pro vault", task_id="S0001")
+    escopo = vdir / "Pluto" / "diario"
+    assert escopo.is_dir(), "escopo diario não criado no vault"
+    corpos = "\n".join(p.read_text(encoding="utf-8")
+                       for p in escopo.glob("*.md"))     # MOC incluso
+    assert "linha que vai pro vault" in corpos and "[S0001]" in corpos
+
+    # 5) tool tarefa_checkpoint (35ª): spec + despacho real
+    nomes = {t["function"]["name"] for t in TOOLS}
+    assert "tarefa_checkpoint" in nomes and len(nomes) == 35
+    cfgt = fresh()
+    out = EXECUTORS["tarefa_checkpoint"](
+        {"acao": "salvar", "objetivo": "escrever o dossiê final",
+         "nota": "início"}, cfgt)
+    assert "S0001" in out and "✔" in out, out
+    out = EXECUTORS["tarefa_checkpoint"](
+        {"acao": "retomar", "id": "S0001"}, cfgt)
+    assert "RETOMADA DA TAREFA S0001" in out and "dossiê" in out, out
+    out = EXECUTORS["tarefa_checkpoint"]({"acao": "listar"}, cfgt)
+    assert "S0001" in out and "escrever o dossiê" in out, out
+    out = EXECUTORS["tarefa_checkpoint"](
+        {"acao": "fechar", "id": "S0001", "resultado": "dossiê pronto"},
+        cfgt)
+    assert "diário" in out and "✔" in out, out
+    assert len(contexto.diario_ler(cfgt)) == 1
+    # acoes honestas: inválida orienta, ausente informa
+    assert "inválida" in EXECUTORS["tarefa_checkpoint"](
+        {"acao": "pular"}, cfgt)
+    assert "não encontrado" in EXECUTORS["tarefa_checkpoint"](
+        {"acao": "ler", "id": "S4242"}, cfgt)
 
 
 if __name__ == "__main__":

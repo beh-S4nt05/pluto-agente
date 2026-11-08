@@ -386,6 +386,13 @@ class Agent:
         ev({"type": "note",
             "message": f"🧠 contexto compactado ({len(meio)} mensagens → resumo) "
                        "— tarefa original e resultados recentes preservados"})
+        # V9.0.0 (P1): fim da perda SILENCIOSA — a compactação fica
+        # registrada no agent.log (auditável) além do evento na UI
+        try:
+            from .contexto import registrar_truncamento
+            registrar_truncamento(self.cfg, len(meio))
+        except Exception:  # noqa: BLE001
+            pass
         return ([msgs[0], msgs[i_tarefa],
                  {"role": "user",
                   "content": "[CONTEXTO ANTERIOR RESUMIDO — trabalho já feito:\n"

@@ -26,7 +26,7 @@ import time
 import unicodedata
 from pathlib import Path
 
-ESCOPOS = ("memoria", "projetos", "conhecimento", "aprendizado")
+ESCOPOS = ("memoria", "projetos", "conhecimento", "aprendizado", "diario")
 
 
 def _slug(txt: str) -> str:

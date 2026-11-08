@@ -183,6 +183,41 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "tarefa_checkpoint",
+            "description": (
+                "CHECKPOINT de contexto durável (v9.0.0): o estado da "
+                "tarefa sobrevive a compactações, restarts e "
+                "truncamentos. acao=salvar (id opcional — nova S000x; "
+                "objetivo extrai critérios; nota ANEXA aos feitos; "
+                "proximos/bloqueios/plano atualizam), acao=ler (estado "
+                "completo), acao=listar (tarefas ativas), acao=retomar "
+                "(estado + prompt de continuação — use ao continuar uma "
+                "tarefa antiga), acao=fechar (encerra e escreve no "
+                "diário de trabalho)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "acao": {"type": "string",
+                             "description": "salvar|ler|listar|retomar|fechar"},
+                    "id": {"type": "string",
+                           "description": "id da tarefa (opcional em salvar)"},
+                    "objetivo": {"type": "string"},
+                    "nota": {"type": "string",
+                             "description": "feito a registrar (anexa)"},
+                    "plano": {"type": "string"},
+                    "proximos": {"type": "string"},
+                    "bloqueios": {"type": "string"},
+                    "resultado": {"type": "string",
+                                  "description": "p/ fechar"}
+                },
+                "required": ["acao"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "edit_file",
             "description": (
                 "Edita um arquivo de forma CIRÚRGICA: substitui o "
@@ -1562,6 +1597,52 @@ def autoavaliar(args: dict, cfg) -> str:
     return formatar_quadro(res)
 
 
+def tarefa_checkpoint(args: dict, cfg) -> str:
+    """v9.0.0 (P1): checkpoint de contexto durável + diário de trabalho."""
+    from . import contexto
+    acao = str(args.get("acao") or "").strip().lower()
+    if acao == "salvar":
+        reg = contexto.salvar(
+            cfg, task_id=str(args.get("id") or ""),
+            objetivo=str(args.get("objetivo") or ""),
+            nota=str(args.get("nota") or ""),
+            plano=str(args.get("plano") or ""),
+            proximos=str(args.get("proximos") or ""),
+            bloqueios=str(args.get("bloqueios") or ""))
+        if "erro" in reg:
+            return f"✖ {reg['erro']}"
+        return (f"✔ checkpoint {reg['id']} salvo (versão {reg['versao']}, "
+                f"{len(reg['feitos'])} feito(s)) — critérios: "
+                f"{len(reg['criterios'])}")
+    if acao == "ler":
+        reg = contexto.carregar(cfg, str(args.get("id") or ""))
+        if not reg:
+            return (f"✖ checkpoint não encontrado: {args.get('id')!r} — "
+                    "listar mostra as tarefas ativas")
+        import json
+        return json.dumps(reg, ensure_ascii=False, indent=1)
+    if acao == "listar":
+        ativas = contexto.listar(cfg)
+        if not ativas:
+            return "ℹ nenhuma tarefa ativa com checkpoint"
+        return "📋 Tarefas ativas (checkpoint):\n" + "\n".join(
+            f"  • {r['id']} · v{r['versao']} · atualizada {r['atualizado']}"
+            f"\n      {str(r.get('objetivo', ''))[:90]}" for r in ativas)
+    if acao == "retomar":
+        ret = contexto.retomar(cfg, str(args.get("id") or ""))
+        if "erro" in ret:
+            return f"✖ {ret['erro']}"
+        return ret["prompt"]
+    if acao == "fechar":
+        reg = contexto.fechar(cfg, str(args.get("id") or ""),
+                              str(args.get("resultado") or ""))
+        if "erro" in reg:
+            return f"✖ {reg['erro']}"
+        return (f"✔ tarefa {reg['id']} {reg['status']} — linha gravada no "
+                "diário de trabalho")
+    return ("✖ acao inválida — use salvar|ler|listar|retomar|fechar")
+
+
 def agenda_criar(args: dict, cfg) -> str:
     """v8.5.0: cria evento no Google Calendar (conta vinculada)."""
     from . import agendacfg
@@ -1587,6 +1668,7 @@ EXECUTORS = {
     "mcp_recurso": mcp_recurso,
     "mcp_prompt": mcp_prompt,
     "autoavaliar": autoavaliar,
+    "tarefa_checkpoint": tarefa_checkpoint,
     "agenda_criar": agenda_criar,
     "edit_file": edit_file,
     "proc_start": proc_start,
