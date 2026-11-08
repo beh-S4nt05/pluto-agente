@@ -10939,7 +10939,7 @@ def T246_autoavaliacao_quadro_auditavel():
 
     # 10) tool nativa (34ª): registrada, spec correta e despacha
     nomes = {t["function"]["name"] for t in TOOLS}
-    assert "autoavaliar" in nomes and len(nomes) == 35  # +tarefa_checkpoint
+    assert "autoavaliar" in nomes and len(nomes) == 36  # 36 tools V9
     spec = [t for t in TOOLS
             if t["function"]["name"] == "autoavaliar"][0]["function"]
     assert set(spec["parameters"]["required"]) == {"pedido", "entrega"}
@@ -11097,7 +11097,7 @@ def T244_diario_de_trabalho():
 
     # 5) tool tarefa_checkpoint (35ª): spec + despacho real
     nomes = {t["function"]["name"] for t in TOOLS}
-    assert "tarefa_checkpoint" in nomes and len(nomes) == 35
+    assert "tarefa_checkpoint" in nomes and len(nomes) == 36
     cfgt = fresh()
     out = EXECUTORS["tarefa_checkpoint"](
         {"acao": "salvar", "objetivo": "escrever o dossiê final",
@@ -11118,6 +11118,137 @@ def T244_diario_de_trabalho():
         {"acao": "pular"}, cfgt)
     assert "não encontrado" in EXECUTORS["tarefa_checkpoint"](
         {"acao": "ler", "id": "S4242"}, cfgt)
+
+
+@case
+def T245_verificacao_segunda_passada():
+    """V9.0.0 P2 (T245): 2ª PASSADA anti-alucinação — cada afirmação
+    factual da resposta é conferida contra os DADOS das ferramentas
+    (✓ lastreada · ✗ sem lastro · ~ incerta declarada), score de
+    confiança no rodapé e a regra dura: destrutiva + confiança baixa
+    → perguntar_operador obrigatório. Tool 36ª + SYSTEM_PROMPT wired."""
+    from pluto.agent import Agent
+    from pluto.tools import EXECUTORS, TOOLS
+    from pluto.verificacao import (CONF_MINIMA_DESTRUTIVA, extrair_afirmacoes,
+                                   rodape, verificar)
+
+    # 1) extração determinística: números/verbos factuais/absolutos
+    #    entram; opinião declarada NÃO
+    resp = ("A suíte tem 246 testes. O CI passou nos 3 SOs. "
+            "Acho que talvez funcione. Sempre funciona assim.")
+    affs = extrair_afirmacoes(resp)
+    assert 2 <= len(affs) <= 4, affs
+    juntou = " ".join(affs)
+    assert "246" in juntou and "3 SOs" in juntou, affs
+    assert "Acho que talvez" not in juntou          # opinião ≠ fato
+    assert extrair_afirmacoes("") == []
+    assert extrair_afirmacoes("ok, obrigado!") == []
+    assert extrair_afirmacoes(resp) == affs          # determinístico
+
+    # 2) ✓: número presente nos dados das tools
+    cfg = fresh()
+    res = verificar(cfg, "A suíte tem 246 testes e passou nos 3 SOs.",
+                    "RESULTADO: 246 OK · 0 falha(s) · matriz 3 SOs")
+    assert res["ok"] and res["veredicto"] == "entregar", res
+    assert res["confianca"] == 100 and res["metodo"] == "heuristica"
+    assert all(c["status"] == "✓" for c in res["afirmacoes"]), res
+
+    # 3) ✗: número SEM lastro nos dados (a alucinação clássica)
+    res = verificar(fresh(), "A suíte tem 241 testes.",
+                    "RESULTADO: 246 OK · 0 falha(s)")
+    assert res["veredicto"] == "corrigir" and res["confianca"] == 0, res
+    assert "241" in res["afirmacoes"][0]["evidencia"], res
+
+    # 4) ~: afirmação sem dados que a sustentem → DECLARAR incerteza
+    res = verificar(fresh(), "O serviço está estável.",
+                    "RESULTADO: 246 OK · 0 falha(s)")
+    assert res["veredicto"] == "declarar-incertezas", res
+    assert res["afirmacoes"][0]["status"] == "~"
+    assert "declare" in res["afirmacoes"][0]["evidencia"]
+
+    # 5) generalização absoluta sem lastro → ~
+    res = verificar(fresh(), "Sempre funciona sem falhas.", "")
+    assert res["afirmacoes"][0]["status"] == "~", res
+    assert "generalização" in res["afirmacoes"][0]["evidencia"]
+
+    # 6) resposta sem afirmações verificáveis → honesto, entrega
+    res = verificar(fresh(), "Olá! Como posso ajudar?", "")
+    assert res["afirmacoes"] == [] and res["veredicto"] == "entregar"
+    assert res["confianca"] is None
+    assert "sem afirmações" in res["rodape"]
+
+    # 7) REGRA DURA: destrutiva + ✗ (ou confiança < mínimo) →
+    #    PERGUNTAR AO OPERADOR (nunca executar às cegas)
+    res = verificar(fresh(), "A suíte tem 241 testes.",
+                    "RESULTADO: 246 OK", acao_destrutiva=True)
+    assert res["veredicto"] == "perguntar-operador", res
+    assert "perguntar_operador" in res["motivo"], res
+    # 3 de 4 sustentadas = 75% < 80% mínimo → destrutiva também pergunta
+    resp75 = ("O build passou. Os testes somam 246. O lint está limpo. "
+              "O cache acelerou tudo.")
+    dados75 = "build: ok · testes: 246 · ruff: limpo"
+    res = verificar(fresh(), resp75, dados75)
+    assert res["confianca"] >= 50 and res["veredicto"] != \
+        "perguntar-operador", res        # sem destrutiva: segue a regra comum
+    res = verificar(fresh(), resp75, dados75, acao_destrutiva=True)
+    assert res["veredicto"] == "perguntar-operador" or \
+        res["confianca"] >= CONF_MINIMA_DESTRUTIVA, res
+    assert CONF_MINIMA_DESTRUTIVA == 80
+
+    # 8) rodapé: contagens + confiança + instrução
+    r = rodape({"afirmacoes": [{"status": "✓"}, {"status": "~"}],
+                "confianca": 50, "veredicto": "declarar-incertezas"})
+    assert "1✓ · 0✗ · 1~" in r and "50%" in r and "declare" in r
+    r = rodape({"afirmacoes": [{"status": "✓"}], "confianca": 100,
+                "veredicto": "perguntar-operador"})
+    assert "pergunte ao operador" in r
+
+    # 9) CÉREBRO na 2ª passada (portão P7; injetado — mesmo contrato):
+    #    julgamento por afirmação na MESMA ordem; torto → fallback
+    def juiz(prompt):
+        assert "2ª PASSADA" in prompt and "AFIRMAÇÕES" in prompt
+        n = len(extrair_afirmacoes("A suíte tem 246 testes."))
+        return json.dumps({"afirmacoes": [
+            {"status": "violado", "evidencia": "o dado diz outra coisa"}]
+            * n})
+    res = verificar(fresh(), "A suíte tem 246 testes.",
+                    "RESULTADO: 246 OK", _julgar=juiz)
+    assert res["metodo"] == "cerebro" and res["veredicto"] == "corrigir"
+    assert res["afirmacoes"][0]["status"] == "✗"
+    res = verificar(fresh(), "A suíte tem 246 testes.",
+                    "RESULTADO: 246 OK", _julgar=lambda p: "json?")
+    assert res["metodo"] == "heuristica" and res["ok"]
+
+    # 10) auditoria: verificacoes.jsonl + linha no log SEM vazar resposta
+    cfg = fresh()
+    verificar(cfg, "A suíte tem 246 testes.", "suíte: 246 OK")
+    jl = cfg.data_dir / "verificacoes.jsonl"
+    assert jl.is_file()
+    linha = json.loads(jl.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert linha["veredicto"] == "entregar" and linha["confianca"] == 100
+    log_txt = cfg.logfile.read_text(encoding="utf-8") if \
+        cfg.logfile.is_file() else ""
+    assert "[verificacao]" in log_txt
+    assert "246 testes" not in log_txt          # resposta não vaza (D2)
+
+    # 11) tool 36ª: registrada, spec, despacha (bool e string)
+    nomes = {t["function"]["name"] for t in TOOLS}
+    assert "verificar_resposta" in nomes and len(nomes) == 36
+    spec = [t for t in TOOLS
+            if t["function"]["name"] == "verificar_resposta"][0]["function"]
+    assert spec["parameters"]["required"] == ["resposta"]
+    out = EXECUTORS["verificar_resposta"](
+        {"resposta": "A suíte tem 246 testes.",
+         "dados_tools": "suíte: 246 OK"}, fresh())
+    assert "🔎" in out and "VEREDICTO: ENTREGAR" in out, out
+    out = EXECUTORS["verificar_resposta"](
+        {"resposta": "A suíte tem 241 testes.", "dados_tools": "246 OK",
+         "acao_destrutiva": "true"}, fresh())
+    assert "PERGUNTAR-OPERADOR" in out and "✗" in out, out
+
+    # 12) SYSTEM_PROMPT wired: o comportamento está instruído
+    assert "verificar_resposta" in Agent(fresh()).system_prompt("x")
+    assert "autoavaliar" in Agent(fresh()).system_prompt("x")
 
 
 if __name__ == "__main__":

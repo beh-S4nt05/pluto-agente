@@ -218,6 +218,41 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "verificar_resposta",
+            "description": (
+                "2ª PASSADA anti-alucinação (v9.0.0): confere CADA "
+                "afirmação factual da sua resposta contra os DADOS "
+                "REAIS retornados pelas ferramentas — ✓ lastreada · "
+                "✗ sem lastro (corrija) · ~ incerta (DECLARE incerteza "
+                "na resposta). Devolve score de confiança para o "
+                "rodapé. Use ANTES de entregar qualquer resposta "
+                "baseada em ferramentas; com acao_destrutiva=true e "
+                "confiança baixa o veredicto é perguntar-operador "
+                "(chame perguntar_operador antes de executar)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "resposta": {"type": "string",
+                                 "description": "a resposta que você "
+                                                "preparou"},
+                    "dados_tools": {"type": "string",
+                                    "description": "saídas das "
+                                                   "ferramentas usadas "
+                                                   "(cole aqui)"},
+                    "acao_destrutiva": {"type": "boolean",
+                                        "description": "a ação seguinte "
+                                                       "destrói/altera "
+                                                       "dados? (default "
+                                                       "false)"}
+                },
+                "required": ["resposta"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "edit_file",
             "description": (
                 "Edita um arquivo de forma CIRÚRGICA: substitui o "
@@ -1643,6 +1678,26 @@ def tarefa_checkpoint(args: dict, cfg) -> str:
     return ("✖ acao inválida — use salvar|ler|listar|retomar|fechar")
 
 
+def verificar_resposta(args: dict, cfg) -> str:
+    """v9.0.0 (P2): 2ª passada — afirmações vs. dados das ferramentas."""
+    from .verificacao import verificar
+    dest = args.get("acao_destrutiva", False)
+    if isinstance(dest, str):
+        dest = dest.strip().lower() in ("1", "true", "sim", "yes")
+    res = verificar(cfg,
+                    str(args.get("resposta") or ""),
+                    str(args.get("dados_tools") or ""),
+                    acao_destrutiva=bool(dest))
+    linhas = [res["rodape"]]
+    for c in res["afirmacoes"]:
+        linhas.append(f"  {c['status']} {c['texto'][:100]}")
+        if c.get("evidencia"):
+            linhas.append(f"      ↳ {c['evidencia'][:140]}")
+    linhas.append(f"  VEREDICTO: {res['veredicto'].upper()} — "
+                  f"{res['motivo']}")
+    return "\n".join(linhas)
+
+
 def agenda_criar(args: dict, cfg) -> str:
     """v8.5.0: cria evento no Google Calendar (conta vinculada)."""
     from . import agendacfg
@@ -1669,6 +1724,7 @@ EXECUTORS = {
     "mcp_prompt": mcp_prompt,
     "autoavaliar": autoavaliar,
     "tarefa_checkpoint": tarefa_checkpoint,
+    "verificar_resposta": verificar_resposta,
     "agenda_criar": agenda_criar,
     "edit_file": edit_file,
     "proc_start": proc_start,
