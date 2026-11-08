@@ -11246,9 +11246,28 @@ def T245_verificacao_segunda_passada():
          "acao_destrutiva": "true"}, fresh())
     assert "PERGUNTAR-OPERADOR" in out and "✗" in out, out
 
-    # 12) SYSTEM_PROMPT wired: o comportamento está instruído
-    assert "verificar_resposta" in Agent(fresh()).system_prompt("x")
-    assert "autoavaliar" in Agent(fresh()).system_prompt("x")
+    # 12) wiring: a instrução vive nas DESCRIPTIONS das tools — o canal
+    #     pelo qual o modelo as descobre (protocolo de tools). O
+    #     SYSTEM_PROMPT tem orçamento FIXO <6000 (T12) já consumido pelo
+    #     ambiente (hostname/workdir longos no macOS: baseline ~5891) —
+    #     lição do CI: nada de inflar o prompt base
+    specv = [t for t in TOOLS if t["function"]["name"]
+             == "verificar_resposta"][0]["function"]["description"]
+    speca = [t for t in TOOLS if t["function"]["name"]
+             == "autoavaliar"][0]["function"]["description"]
+    assert "ANTES de entregar" in specv, specv[:120]
+    assert "ANTES de entregar" in speca, speca[:120]
+    assert "perguntar_operador" in specv
+    # e o prompt base VOLTOU ao tamanho legado (guarda anti-inflação)
+    class _Fala:
+        simulated = False
+
+        def chat_stream(self, *a, **k):
+            yield {"message": {"content": "ok"}}
+
+    ag = Agent(fresh())
+    ag.client = _Fala()
+    assert len(ag.system_prompt("teste")) < 5600
 
 
 if __name__ == "__main__":
