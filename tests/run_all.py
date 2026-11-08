@@ -11014,6 +11014,15 @@ def T243_checkpoint_contexto_duravel():
     assert "S0002" not in {a["id"] for a in contexto.listar(cfg)}
     assert "erro" in contexto.fechar(cfg, "S9999")
 
+    # 6b) REGRESSÃO do CI (run 42503471387): duas tarefas salvas no
+    #     MESMO segundo — "mais recente" decide por ts de µs, nunca
+    #     pela ordem do filesystem
+    contexto.salvar(cfg, task_id="S0098", objetivo="primeira do empate")
+    contexto.salvar(cfg, task_id="S0099", objetivo="segunda do empate")
+    assert contexto.retomar(cfg)["tarefa"]["id"] == "S0099"
+    contexto.fechar(cfg, "S0099")
+    assert contexto.retomar(cfg)["tarefa"]["id"] == "S0098"
+
     # 7) TRUNCAMENTO REGISTRADO: corrida que compacta deixa linha no
     #    agent.log (a compactação deixou de ser silenciosa)
     class FC:

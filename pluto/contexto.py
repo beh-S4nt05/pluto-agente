@@ -95,6 +95,9 @@ def salvar(cfg, task_id: str = "", objetivo: str = "", nota: str = "",
                               "ts": time.strftime("%H:%M:%S")}
     reg["versao"] = int(reg.get("versao", 0)) + 1
     reg["atualizado"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    reg["ts"] = time.time()     # µs: desempata "mais recente" DENTRO do
+    #                            mesmo segundo (ordem de filesystem não
+    #                            decide — bug pego pelo CI, run 42503471387)
     _atomic_write(path, json.dumps(reg, ensure_ascii=False, indent=1))
     return reg
 
@@ -122,7 +125,10 @@ def listar(cfg, so_ativas: bool = True) -> list[dict]:
             continue
     if so_ativas:
         regs = [r for r in regs if r.get("status") == "ativa"]
-    return sorted(regs, key=lambda r: str(r.get("atualizado", "")),
+    # recência por ts (µs) com fallback para registros antigos sem ts —
+    # empate de segundo NÃO cai na ordem do filesystem (determinístico)
+    return sorted(regs, key=lambda r: (float(r.get("ts") or 0),
+                                       str(r.get("atualizado", ""))),
                   reverse=True)
 
 
@@ -137,6 +143,7 @@ def fechar(cfg, task_id: str, resultado: str = "",
         "concluida"
     reg["resultado"] = str(resultado or "").strip()[:500]
     reg["atualizado"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    reg["ts"] = time.time()
     _atomic_write(_path(cfg, reg["id"]),
                   json.dumps(reg, ensure_ascii=False, indent=1))
     diar(cfg, reg["resultado"] or str(reg.get("objetivo", ""))[:120],
