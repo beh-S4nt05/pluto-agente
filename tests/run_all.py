@@ -10836,6 +10836,127 @@ def T249_capacidades_perfis_e_portoes():
     assert not neg["ok"]                              # já forte: não pede
 
 
+@case
+def T246_autoavaliacao_quadro_auditavel():
+    """V9.0.0 P3 (T246): o agente se AUTOAVALIA contra o pedido antes
+    de entregar — critérios extraídos do próprio pedido, quadro
+    ✅/⚠️/✖ com evidência, veredicto (entregar/corrigir/revisar),
+    auditoria em autoavaliacoes.jsonl e tool nativa (34ª)."""
+    from pluto.autoavaliacao import (avaliar, extrair_criterios,
+                                     formatar_quadro)
+    from pluto.tools import EXECUTORS, TOOLS
+
+    # 1) extração determinística: marcadores e quantificadores viram
+    #    critérios; texto vazio não vira nada
+    pedido = ("Crie o pipeline de CI com GitHub Actions. Deve rodar 241 "
+              "testes antes do push. Nunca publique segredos no repo. "
+              "Também rode ruff em tudo.")
+    crits = extrair_criterios(pedido)
+    assert 3 <= len(crits) <= 8, crits
+    juntou = " ".join(crits).lower()
+    assert "github actions" in juntou and "241" in juntou, crits
+    assert "segredos" in juntou and "ruff" in juntou, crits
+    assert extrair_criterios("") == []
+    assert extrair_criterios("oi, tudo bem?") == []
+    # determinístico (auditável): mesma entrada, mesma lista
+    assert extrair_criterios(pedido) == crits
+
+    # 2) entrega BOA → tudo ✅, veredicto entregar, score 100
+    cfg = fresh()
+    boa = ("Pipeline criado: GitHub Actions roda nos 3 SOs, executa os "
+           "241 testes e o ruff em tudo; nada sensível sai do repo "
+           "(varredura no portão 3).")
+    res = avaliar(cfg, pedido, boa)
+    assert res["ok"] and res["veredicto"] == "entregar", res
+    assert res["score"] == 100 and res["metodo"] == "heuristica"
+    assert all(j["status"] == "✅" for j in res["criterios"]), res
+    assert res["perfil"] == "leve"          # piso atual, calibrado por P7
+
+    # 3) entrega RUIM → número violado → ✖ e veredicto CORRIGIR
+    ruim = ("Usei Jenkins, rodei 100 testes e pulei o ruff.")
+    res = avaliar(fresh(), pedido, ruim)
+    assert res["veredicto"] == "corrigir" and res["score"] < 100, res
+    violados = [j for j in res["criterios"] if j["status"] == "✖"]
+    assert violados and "241" in violados[0]["evidencia"], res
+
+    # 4) proibição violada → ✖ (o objeto proibido aparece na entrega)
+    res = avaliar(fresh(), pedido,
+                  "No README publiquei os segredos do servidor junto "
+                  "com os 241 testes e o ruff no GitHub Actions.")
+    vios = [j for j in res["criterios"] if j["status"] == "✖"]
+    assert vios and "segredos" in vios[0]["evidencia"].lower(), res
+
+    # 5) entrega omite assunto → ⚠️ declarado, veredicto REVISAR
+    res = avaliar(fresh(), "Crie o pipeline de CI com GitHub Actions e "
+                  "nunca publique segredos no repo.",
+                  "Feito: atende o pedido.")
+    assert res["veredicto"] == "revisar", res
+    incertos = [j for j in res["criterios"] if j["status"] == "⚠️"]
+    assert incertos and "não consegui verificar" in incertos[0]["evidencia"]
+
+    # 6) pedido sem critérios → honesto, não inventa compliance
+    res = avaliar(fresh(), "oi", "olá!")
+    assert res["criterios"] == [] and res["veredicto"] == "revisar"
+    assert "critérios" in res["motivo"]
+
+    # 7) auditoria: quadro completo no jsonl (privado) + resumo no log
+    #    sem vazar o pedido (D2)
+    cfg = fresh()
+    avaliar(cfg, pedido, boa)
+    jl = cfg.data_dir / "autoavaliacoes.jsonl"
+    assert jl.is_file()
+    linha = json.loads(jl.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert linha["veredicto"] == "entregar" and linha["score"] == 100
+    assert len(linha["criterios"]) >= 3
+    log_path = Path(getattr(cfg, "logfile", ""))
+    log_txt = log_path.read_text(encoding="utf-8") if log_path.is_file() \
+        else ""
+    assert "autoavaliacao" in log_txt
+    assert "GitHub Actions" not in log_txt      # pedido não vaza no log
+
+    # 8) quadro formatado: símbolos, evidência, veredicto
+    quadro = formatar_quadro(avaliar(fresh(), pedido, boa))
+    assert "✅" in quadro and "VEREDICTO: ENTREGAR" in quadro
+    assert "↳" in quadro and "critério(s)" in quadro
+
+    # 9) CÉREBRO julga quando o portão abre (injetado — mesmo contrato
+    #    do arena): julgamento por critério, na MESMA ordem
+    def juiz(prompt):
+        assert "VERIFICADOR" in prompt and "CRITÉRIOS" in prompt
+        n = len(extrair_criterios(pedido))
+        stats = ["ok", "violado", "incerto"] + ["ok"] * (n - 3)
+        return json.dumps({"criterios": [
+            {"texto": "x", "status": s, "evidencia": f"juiz {s}"}
+            for s in stats[:n]]})
+    res = avaliar(fresh(), pedido, boa, _julgar=juiz)
+    assert res["metodo"] == "cerebro", res
+    stats = [j["status"] for j in res["criterios"]]
+    assert stats[:3] == ["✅", "✖", "⚠️"], stats
+    assert res["veredicto"] == "corrigir"
+    # juiz com JSON torto → fallback heurístico honesto (nunca quebra)
+    res = avaliar(fresh(), pedido, boa, _julgar=lambda p: "não sou json")
+    assert res["metodo"] == "heuristica" and res["ok"]
+
+    # 10) tool nativa (34ª): registrada, spec correta e despacha
+    nomes = {t["function"]["name"] for t in TOOLS}
+    assert "autoavaliar" in nomes and len(nomes) == 34
+    spec = [t for t in TOOLS
+            if t["function"]["name"] == "autoavaliar"][0]["function"]
+    assert set(spec["parameters"]["required"]) == {"pedido", "entrega"}
+    out = EXECUTORS["autoavaliar"]({"pedido": pedido, "entrega": boa},
+                                   fresh())
+    assert "🪞" in out and "VEREDICTO: ENTREGAR" in out, out
+    # dados_tools SUSTENTAM a conferência: número que só existe nos
+    # dados das tools conta como verificado (e sem eles → ✖)
+    p3 = "O relatório deve citar os 241 testes"
+    e3 = "o relatório cita todos os testes pedidos"
+    com = EXECUTORS["autoavaliar"](
+        {"pedido": p3, "entrega": e3, "dados_tools": "suíte: 241 OK"},
+        fresh())
+    sem = EXECUTORS["autoavaliar"]({"pedido": p3, "entrega": e3}, fresh())
+    assert "ENTREGAR" in com and "CORRIGIR" in sem, (com, sem)
+
+
 if __name__ == "__main__":
     print("◈ Pluto — suíte de testes\n")
     sys.exit(run_all())

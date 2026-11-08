@@ -152,6 +152,37 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "autoavaliar",
+            "description": (
+                "AUTOAVALIAÇÃO (v9.0.0): confere a ENTREGA contra o "
+                "PEDIDO antes de responder — devolve quadro ✅/⚠️/✖ por "
+                "critério, com evidência e veredicto (entregar/corrigir/"
+                "revisar). Use ANTES de entregar qualquer tarefa: passe "
+                "o pedido ORIGINAL do operador, a resposta que você "
+                "preparou e, quando houver, as saídas das ferramentas "
+                "usadas (dados_tools) para as afirmações serem "
+                "conferidas contra dados reais."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pedido": {"type": "string",
+                               "description": "o pedido original do "
+                                              "operador (literal)"},
+                    "entrega": {"type": "string",
+                                "description": "a resposta/preparada a "
+                                               "ser conferida"},
+                    "dados_tools": {"type": "string",
+                                    "description": "saídas das ferramentas "
+                                                   "usadas (opcional)"}
+                },
+                "required": ["pedido", "entrega"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "edit_file",
             "description": (
                 "Edita um arquivo de forma CIRÚRGICA: substitui o "
@@ -1521,6 +1552,16 @@ def mcp_prompt(args: dict, cfg) -> str:
     return mgr.obter_prompt(nome, args.get("args") or {}, servidor)
 
 
+def autoavaliar(args: dict, cfg) -> str:
+    """v9.0.0 (P3): confere a entrega contra o pedido — quadro auditável."""
+    from .autoavaliacao import avaliar, formatar_quadro
+    res = avaliar(cfg,
+                  str(args.get("pedido") or ""),
+                  str(args.get("entrega") or ""),
+                  str(args.get("dados_tools") or ""))
+    return formatar_quadro(res)
+
+
 def agenda_criar(args: dict, cfg) -> str:
     """v8.5.0: cria evento no Google Calendar (conta vinculada)."""
     from . import agendacfg
@@ -1545,6 +1586,7 @@ EXECUTORS = {
     "notebook_buscar": notebook_buscar,
     "mcp_recurso": mcp_recurso,
     "mcp_prompt": mcp_prompt,
+    "autoavaliar": autoavaliar,
     "agenda_criar": agenda_criar,
     "edit_file": edit_file,
     "proc_start": proc_start,
