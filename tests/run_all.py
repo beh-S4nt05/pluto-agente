@@ -11258,7 +11258,11 @@ def T245_verificacao_segunda_passada():
     assert "ANTES de entregar" in specv, specv[:120]
     assert "ANTES de entregar" in speca, speca[:120]
     assert "perguntar_operador" in specv
-    # e o prompt base VOLTOU ao tamanho legado (guarda anti-inflação)
+    # e o prompt base VOLTOU ao legado (guarda anti-inflação). Prova
+    # ambiente-INDEPENDENTE: a instrução não está no prompt (vive nas
+    # descriptions); o tamanho é coisa do T12, dono do orçamento —
+    # lição do CI: assert numérico absoluto em componente variável
+    # por SO (hostname/workdir) é flake (ubuntu ~5745 · macOS ~5891)
     class _Fala:
         simulated = False
 
@@ -11267,7 +11271,9 @@ def T245_verificacao_segunda_passada():
 
     ag = Agent(fresh())
     ag.client = _Fala()
-    assert len(ag.system_prompt("teste")) < 5600
+    p = ag.system_prompt("teste")
+    assert "verificar_resposta" not in p and "autoavaliar" not in p
+    assert len(p) < 6000
 
 
 if __name__ == "__main__":
