@@ -239,6 +239,46 @@ def list_events(cfg, account: str | None = None, dias: int = 7,
     return cab + "\n" + "\n".join(fmt_event(e) for e in itens)
 
 
+def eventos_estruturados(cfg, dias: int = 1) -> list[dict]:
+    """V9.0.0 (P4): eventos com início PARSEADO — os lembretes do
+    secretário precisam de datetime, não da linha formatada.
+    [{titulo, inicio: datetime, local, conta}] — sem conta conectada
+    devolve [] (honesto); evento sem data parseável é ignorado."""
+    data = load(cfg)
+    accs = data.get("accounts") or []
+    if not accs:
+        return []
+    agora = datetime.now().astimezone()
+    hoje0 = agora.replace(hour=0, minute=0, second=0, microsecond=0)
+    params = {"singleEvents": "true", "orderBy": "startTime",
+              "maxResults": 25,
+              "timeMin": hoje0.isoformat(),
+              "timeMax": (hoje0 + timedelta(days=max(1, int(dias)))).isoformat()}
+    saida: list[dict] = []
+    for acc in accs[:3]:
+        try:
+            resp = _api_get(acc, "/calendars/primary/events", params)
+        except Exception:  # conta fora do ar não derruba as demais
+            continue
+        for e in resp.get("items") or []:
+            if e.get("status") == "cancelled":
+                continue
+            s = e.get("start") or {}
+            dt = None
+            if s.get("dateTime"):
+                try:
+                    dt = datetime.fromisoformat(s["dateTime"])
+                except ValueError:
+                    continue
+            else:
+                continue                      # dia inteiro: sem horário p/ lembrar
+            saida.append({"titulo": str(e.get("summary") or "(sem título)"),
+                          "inicio": dt,
+                          "local": str(e.get("location") or ""),
+                          "conta": str(acc.get("user") or "")})
+    return saida
+
+
 def add_account(cfg, user: str, client_id: str, client_secret: str = "",
                 print_fn=print, on_code=None) -> tuple[dict, str]:
     """Adiciona a agenda de uma conta Google via device code (2FA do

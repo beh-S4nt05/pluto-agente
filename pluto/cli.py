@@ -735,6 +735,34 @@ def cmd_capacidades(args) -> None:
         "capacidades_perfil no config.yaml — sem refatorar nada.")
 
 
+def cmd_secretario(args) -> None:
+    """V9.0.0 (P4 · T247–T248): o secretário proativo — briefing
+    diário, lembretes e triagem de e-mail (tudo opt-in no config)."""
+    from . import secretario
+    from .contratos import acao_de
+    cfg = _cfg(args)
+    acao = acao_de(args, "status")
+    if acao == "briefing":
+        if getattr(args, "enviar", False):
+            r = secretario.enviar_briefing(cfg)
+            _p(("✔ " if r.get("ok") else "✖ ") + r.get("msg", ""))
+        br = secretario.montar_briefing(cfg)
+        _p("\n" + br["texto"])
+        return
+    # status (default)
+    reg = secretario._registro(cfg)
+    _p("🤵 Secretário proativo — status\n")
+    _p(f"   briefing diário : {'✅ ' + str(cfg.briefing_hora) if getattr(cfg, 'briefing_on', False) else '❌ desligado (briefing_on: true no config)'}")
+    if reg.get("briefing_data"):
+        _p(f"   último enviado  : {reg['briefing_data']}")
+    _p(f"   lembretes       : {getattr(cfg, 'lembrete_min', 30)} min antes "
+        "dos eventos da agenda")
+    _p(f"   triagem e-mail  : {'✅' if getattr(cfg, 'email_triagem_on', False) else '❌ desligado (email_triagem_on: true)'}")
+    _p("\n   Canal: pluto telegram start · agendar tudo: pluto server "
+        "(o scheduler chama o tick a cada ciclo)")
+    _p("   Testar agora: pluto secretario briefing [--enviar]")
+
+
 def cmd_gates(args) -> None:
     """V9.0.0 (T242): os portões de qualidade em 1 comando — ruff →
     suíte → varredura. Espelho EXATO do pipeline do GitHub Actions
@@ -1045,6 +1073,14 @@ def build_parser() -> argparse.ArgumentParser:
                        help="perfil e portões do cérebro ativo (Princípio 0: "
                             "o modelo é a base, não o limitador)")
     p.set_defaults(fn=cmd_capacidades)
+    p = sub.add_parser("secretario",
+                       help="🤵 secretário proativo: briefing diário no "
+                            "Telegram, lembretes e triagem de e-mail")
+    p.add_argument("acao", nargs="?", default="status",
+                   help="status|briefing")
+    p.add_argument("--enviar", action="store_true",
+                   help="com briefing: envia de verdade no Telegram")
+    p.set_defaults(fn=cmd_secretario)
     p = sub.add_parser("gerente",
                        help="gerente de código (Claude Code) — opt-in consciente")
     p.add_argument("acao", nargs="?", default="status",

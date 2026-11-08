@@ -41,6 +41,13 @@ DEFAULTS = {
     "gerente_codigo": "off",
     "telegram_on": False,
     "whatsapp_on": False,
+    # V9.0.0 (P4): secretário proativo — briefing diário no Telegram
+    # (agenda + e-mails triados + tarefas + diário), lembretes de agenda
+    # X min antes e triagem de e-mail no briefing (tudo opt-in)
+    "briefing_on": False,
+    "briefing_hora": "07:00",
+    "lembrete_min": 30,
+    "email_triagem_on": False,
     "server_port": 8080,
     "skills_watch_dirs": None,        # None = [~/Downloads]
     # Acesso à web (ferramentas web_search / web_fetch do agente e da GUI)
@@ -104,11 +111,11 @@ DEFAULTS = {
 }
 
 _INT_KEYS = {"max_steps", "cmd_timeout", "port", "num_ctx", "num_predict",
-             "max_tool_calls", "backups_keep", "memory_top_k"}
+             "max_tool_calls", "backups_keep", "memory_top_k", "lembrete_min"}
 _FLOAT_KEYS = {"temperature", "max_model_b"}
 _BOOL_KEYS = {"sandbox", "sandbox_home_read", "confirm_dangerous", "auto_start_ollama", "claude_use_ollama", "orchestrator_on", "reviewer_on", "creation_approval", "planejamento_verificado", "certeza_on", "web_access", "stt_autosend", "pipeline_single_model",
-              "mcp_autorestart", "tool_selector"}
-_STR_KEYS = {"ollama_url", "model", "host", "auth_token", "vault_dir", "ocr_engine", "ocr_lang", "ocr_unlimited_dir", "system_prompt_extra", "claude_model", "stt_model", "stt_language", "keep_alive"}
+              "mcp_autorestart", "tool_selector", "briefing_on", "email_triagem_on"}
+_STR_KEYS = {"ollama_url", "model", "host", "auth_token", "vault_dir", "ocr_engine", "ocr_lang", "ocr_unlimited_dir", "system_prompt_extra", "claude_model", "stt_model", "stt_language", "keep_alive", "briefing_hora"}
 
 
 def _env_flag(name: str) -> bool:

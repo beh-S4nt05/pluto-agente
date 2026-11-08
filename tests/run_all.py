@@ -11276,6 +11276,181 @@ def T245_verificacao_segunda_passada():
     assert len(p) < 6000
 
 
+@case
+def T247_secretario_briefing_e_lembretes():
+    """V9.0.0 P4 (T247): BRIEFING DIÁRIO + LEMBRETES — o agente TOMA A
+    INICIATIVA: 1 mensagem no Telegram pela manhã (agenda + e-mails
+    triados + tarefas ativas + diário de ontem), lembrete X min antes
+    de cada evento (1×/dia, sem spam), falha retenta 1×/h, tick nunca
+    derruba o scheduler."""
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from pluto import secretario
+
+    class Canal(list):
+        def enviar(self, texto, chat_id=None):
+            self.append(texto)
+
+    # 1) briefing montado com tudo (seções e conteúdo)
+    cfg = fresh()
+    br = secretario.montar_briefing(
+        cfg,
+        _agenda=lambda c: "🗓 2 evento(s) — 09:00 Reunião de banco",
+        _tarefas=lambda c: [{"id": "S0001", "objetivo": "fechar relatório"}],
+        _emails=lambda c: {"total": 3, "precisa": [
+            {"assunto": "Fatura vence amanhã", "de": "banco@x"}],
+            "info": [], "resumo": "3 não lido(s) · 1 precisa(m) de você"},
+        _diario=lambda c: [{"o_que": "liberei o CI"}])
+    assert br["ok"]
+    tx = br["texto"]
+    assert "BOM DIA" in tx and "Reunião de banco" in tx
+    assert "S0001" in tx and "fechar relatório" in tx
+    assert "Fatura vence amanhã" in tx and "⚠" in tx
+    assert "liberei o CI" in tx and "Ontem no diário" in tx
+
+    # 2) degradação honesta SEM injetar nada (fresh: sem agenda/contas)
+    br = secretario.montar_briefing(fresh())
+    assert br["ok"] and "agenda não conectada" in br["texto"]
+    assert "nenhuma em andamento" in br["texto"]
+
+    # 3) enviar: canal recebe; SEM canal (sem token) → honesto ok=False
+    canal = Canal()
+    r = secretario.enviar_briefing(fresh(), _canal=canal)
+    assert r["ok"] and canal and "BOM DIA" in canal[-1]
+    r = secretario.enviar_briefing(fresh(), _canal=None)
+    assert not r["ok"] and "telegram" in r["msg"].lower()
+
+    # 4) LEMBRETES: janela de 30 min, 1×/dia, fora da janela nada
+    agora = _dt.now().astimezone()
+    ev_prox = {"titulo": "Dentista",
+               "inicio": agora + _td(minutes=20), "local": "Clínica"}
+    ev_longe = {"titulo": "Aula", "inicio": agora + _td(hours=2)}
+    cfg = fresh(lembrete_min=30)
+    enviados = secretario.checar_lembretes(
+        cfg, agora=agora, _eventos=lambda c: [ev_prox, ev_longe],
+        _canal=canal)
+    assert len(enviados) == 1 and enviados[0]["titulo"] == "Dentista"
+    assert "⏰ em 20 min: Dentista" in canal[-1] and "Clínica" in canal[-1]
+    n = len(canal)
+    assert secretario.checar_lembretes(
+        cfg, agora=agora, _eventos=lambda c: [ev_prox, ev_longe],
+        _canal=canal) == []                     # não repete (registry)
+    assert len(canal) == n
+    assert secretario.checar_lembretes(
+        fresh(lembrete_min=30), agora=agora,
+        _eventos=lambda c: [ev_longe], _canal=canal) == []  # fora da janela
+    assert secretario.checar_lembretes(
+        fresh(lembrete_min=0), agora=agora,
+        _eventos=lambda c: [ev_prox], _canal=canal) == []   # desligado
+
+    # 5) TICK: 1×/dia quando devido; novo dia reenvia; off não envia;
+    #    falha honesta → backoff de 1 h; bomba não derruba
+    cfg = fresh(briefing_on=True, briefing_hora="00:01")
+    c3 = Canal()
+    t1 = _dt(2026, 11, 8, 8, 0)
+    secretario.tick(cfg, _agora=t1, _canal=c3, _agenda=lambda cc: "—")
+    assert len(c3) == 1 and "BOM DIA" in c3[0]
+    secretario.tick(cfg, _agora=t1 + _td(minutes=5), _canal=c3,
+                    _agenda=lambda cc: "—")
+    assert len(c3) == 1                        # mesmo dia: não reenvia
+    secretario.tick(cfg, _agora=_dt(2026, 11, 9, 8, 0), _canal=c3,
+                    _agenda=lambda cc: "—")
+    assert len(c3) == 2                        # novo dia: envia
+    c4 = Canal()
+    secretario.tick(fresh(briefing_on=False), _agora=t1, _canal=c4)
+    assert c4 == []                            # desligado: nunca envia
+    # falha (sem canal, sem token) → não marca enviado + backoff 1 h
+    cfgf = fresh(briefing_on=True, briefing_hora="00:01")
+    secretario.tick(cfgf, _agora=t1)
+    reg = secretario._registro(cfgf)
+    assert reg.get("briefing_tentativa") and not reg.get("briefing_data")
+    antes = reg["briefing_tentativa"]
+    secretario.tick(cfgf, _agora=t1 + _td(minutes=1))
+    reg = secretario._registro(cfgf)
+    assert reg["briefing_tentativa"] == antes and not reg.get(
+        "briefing_data")                        # em backoff: nem tenta
+    # cfg-bomba não levanta (nunca derruba o scheduler)
+    class Bomba:
+        def __getattr__(self, k):
+            raise RuntimeError("boom")
+    secretario.tick(Bomba(), _agora=t1)
+
+    # 6) CLI despacha (status e briefing)
+    r = subprocess.run(_pluto_bin() + ["secretario", "status"], cwd=ROOT,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, (r.stdout + r.stderr)[-300:]
+    assert "Secretário" in (r.stdout + r.stderr)
+    r = subprocess.run(_pluto_bin() + ["secretario", "briefing"], cwd=ROOT,
+                       capture_output=True, text=True, timeout=120)
+    out = r.stdout + r.stderr
+    assert r.returncode == 0 and "BOM DIA" in out, out[-300:]
+
+
+@case
+def T248_triagem_de_email():
+    """V9.0.0 P4 (T248): TRIAGEM DE E-MAIL — não lidos do IMAP
+    classificados 'precisa de você' (fatura/prazo/pergunta) ×
+    informativo, com resumo que entra no briefing; sem contas →
+    honesto; leitor IMAP best-effort por conta; eventos da agenda
+    estruturados p/ lembretes (parse de dateTime, filtro de
+    cancelados e dia inteiro)."""
+    from pluto import agendacfg, secretario
+
+    # 1) classificação
+    emails = [
+        {"de": "banco@x.com", "assunto": "Fatura vence amanhã"},
+        {"de": "chefia@x.com", "assunto": "Prazo do relatório"},
+        {"de": "news@x.com", "assunto": "Newsletter semanal"},
+        {"de": "colega@x.com", "assunto": "Convite para almoço?"},
+    ]
+    r = secretario.triar_emails(fresh(), _ler=lambda c, l: emails)
+    assert r["total"] == 4 and len(r["precisa"]) == 3, r
+    assert any("Fatura" in e["assunto"] for e in r["precisa"])
+    assert r["info"] and r["info"][0]["assunto"] == "Newsletter semanal"
+    assert "4 não lido(s)" in r["resumo"] and "3 precisa" in r["resumo"]
+    assert "Fatura vence amanhã" in r["resumo"]
+
+    # 2) vazio / sem contas → honesto, sem rede
+    r = secretario.triar_emails(fresh(), _ler=lambda c, l: [])
+    assert r["total"] == 0 and "nenhum e-mail" in r["resumo"]
+    assert secretario.triar_emails(fresh())["total"] == 0
+
+    # 3) triagem entra no briefing (flag on) e desligada não entra
+    br = secretario.montar_briefing(fresh(email_triagem_on=True),
+                                    _agenda=lambda c: "—",
+                                    _emails=lambda c: r)
+    assert "📧" in br["texto"]
+    br2 = secretario.montar_briefing(fresh(), _agenda=lambda c: "—")
+    assert "📧" not in br2["texto"]
+
+    # 4) decodificação MIME de cabeçalho
+    dec = secretario._dec_cab("=?utf-8?q?Fatura_=C3=A9?= importante")
+    assert dec.startswith("Fatura é"), dec
+
+    # 5) eventos_estruturados: sem conta → []; parse/campos/filtros
+    assert agendacfg.eventos_estruturados(fresh()) == []
+    cfg = fresh()
+    agendacfg.save(cfg, {"accounts": [{"user": "eu@x.com"}]})
+    evs = {"items": [
+        {"summary": "Reunião", "status": "confirmed",
+         "start": {"dateTime": "2026-11-08T14:00:00-04:00"},
+         "location": "Sala 1"},
+        {"summary": "Cancelado", "status": "cancelled",
+         "start": {"dateTime": "2026-11-08T15:00:00-04:00"}},
+        {"summary": "Feriado (dia inteiro)", "start": {"date": "2026-11-08"}},
+    ]}
+    orig = agendacfg._api_get
+    agendacfg._api_get = lambda acc, path, params=None: evs
+    try:
+        out = agendacfg.eventos_estruturados(cfg)
+    finally:
+        agendacfg._api_get = orig
+    assert len(out) == 1, out                     # cancelado e dia inteiro fora
+    assert out[0]["titulo"] == "Reunião" and out[0]["local"] == "Sala 1"
+    assert out[0]["inicio"].hour == 14 and out[0]["conta"] == "eu@x.com"
+
+
 if __name__ == "__main__":
     print("◈ Pluto — suíte de testes\n")
     sys.exit(run_all())

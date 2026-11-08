@@ -499,6 +499,13 @@ class Scheduler:
                 autoscan(self.cfg)
         except Exception:  # noqa: BLE001
             pass
+        # V9.0.0 (P4): secretário proativo — briefing diário + lembretes
+        # (best-effort com rate-limit próprio; nunca derruba o loop)
+        try:
+            from . import secretario
+            secretario.tick(self.cfg)
+        except Exception:  # noqa: BLE001
+            pass
         for entry in self.store.list_all():
             if not entry.get("enabled") or entry.get("running"):
                 continue
