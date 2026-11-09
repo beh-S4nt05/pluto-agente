@@ -994,7 +994,20 @@ self.addEventListener("fetch", (e) => {
         # ---- sessão persistida (histórico recuperável a qualquer momento) ----
         from ..conversations import SESSION_ID_RE, ConversationStore
 
-        store = ConversationStore(cfg)
+        # V9.0.0 (P8): conversa DENTRO de um projeto (node) — as
+        # mensagens ficam em projetos/<slug>/conversas/. Projeto
+        # inexistente é ERRO explícito (honesto), nunca silêncio.
+        _projeto = str(payload.get("projeto") or "").strip()
+        if _projeto:
+            from ..projetos import obter as _projeto_obter, store_do
+            if _projeto_obter(cfg, _projeto) is None:
+                return jsonify({"ok": False, "msg": (
+                    f"projeto '{_projeto}' não existe — crie primeiro "
+                    "(tool projeto acao criar, ou: pluto projeto criar "
+                    f"{_projeto})")}), 400
+            store = store_do(cfg, _projeto)
+        else:
+            store = ConversationStore(cfg)
         session_id = str(payload.get("session_id") or "").strip()
         if not SESSION_ID_RE.fullmatch(session_id):
             session_id = ""  # id inválido/ausente -> nova conversa

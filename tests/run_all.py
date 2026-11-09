@@ -10939,7 +10939,7 @@ def T246_autoavaliacao_quadro_auditavel():
 
     # 10) tool nativa (34ª): registrada, spec correta e despacha
     nomes = {t["function"]["name"] for t in TOOLS}
-    assert "autoavaliar" in nomes and len(nomes) == 36  # 36 tools V9
+    assert "autoavaliar" in nomes and len(nomes) == 37  # 37 tools V9 (P8: projeto)
     spec = [t for t in TOOLS
             if t["function"]["name"] == "autoavaliar"][0]["function"]
     assert set(spec["parameters"]["required"]) == {"pedido", "entrega"}
@@ -11097,7 +11097,7 @@ def T244_diario_de_trabalho():
 
     # 5) tool tarefa_checkpoint (35ª): spec + despacho real
     nomes = {t["function"]["name"] for t in TOOLS}
-    assert "tarefa_checkpoint" in nomes and len(nomes) == 36
+    assert "tarefa_checkpoint" in nomes and len(nomes) == 37
     cfgt = fresh()
     out = EXECUTORS["tarefa_checkpoint"](
         {"acao": "salvar", "objetivo": "escrever o dossiê final",
@@ -11233,7 +11233,7 @@ def T245_verificacao_segunda_passada():
 
     # 11) tool 36ª: registrada, spec, despacha (bool e string)
     nomes = {t["function"]["name"] for t in TOOLS}
-    assert "verificar_resposta" in nomes and len(nomes) == 36
+    assert "verificar_resposta" in nomes and len(nomes) == 37
     spec = [t for t in TOOLS
             if t["function"]["name"] == "verificar_resposta"][0]["function"]
     assert spec["parameters"]["required"] == ["resposta"]
@@ -11631,6 +11631,178 @@ def T252_honestidade_radical_no_cerne():
     # não prova margem)
     print(f"     ↳ T252: prompt {len(prompt)}/6000 chars (caminhos do "
           f"host influenciam — ver docs/PORTABILIDADE.md)")
+
+
+@case
+def T253_projetos_como_nodes():
+    """V9.0.0 P8 (T253): PROJETOS COMO NODES — proposta do operador
+    ("Projeto → RPG: Conversas, Contextos etc, Recursos/artefatos
+    gerados"): cada projeto é um node em <data>/projetos/<slug>/ que
+    mantém JUNTOS conversas (ConversationStore escopado), contexto
+    (contexto.md + anotações datadas) e artefatos gerados. Tool 37ª
+    `projeto` + CLI `pluto projeto` + /api/chat com "projeto"
+    (inexistente → 400 explícito). Isolamento: nada do node vaza pro
+    escopo global — e nada do global mexe no node."""
+    from pluto import projetos as PJ
+    from pluto.conversations import ConversationStore
+    from pluto.tools import EXECUTORS, TOOLS
+
+    cfg = fresh()
+
+    # 1) slug: determinístico, sem acento, SEM travessia de diretório
+    assert PJ.slugificar("RPG de Mesa!") == "rpg-de-mesa"
+    assert PJ.slugificar("RPG de Mesa!") == PJ.slugificar("rpg  DE mesa")
+    assert PJ.slugificar("ÁÉÍ çãõ") == "aei-cao"
+    trav = PJ.slugificar("../../etc/passwd")
+    assert "/" not in trav and ".." not in trav and trav == "etc-passwd"
+
+    # 2) sem projetos: árvore honesta
+    assert "nenhum projeto" in PJ.arvore(cfg)
+    assert PJ.listar(cfg) == []
+
+    # 3) criar: o node existe EM DISCO com os 3 filhos
+    node = PJ.criar(cfg, "RPG", "campanha de mesa")
+    assert node["slug"] == "rpg" and node["status"] == "ativo"
+    d = Path(cfg.data_dir) / "projetos" / "rpg"
+    meta = json.loads((d / "projeto.json").read_text(encoding="utf-8"))
+    assert meta["nome"] == "RPG" and meta["descricao"] == "campanha de mesa"
+    for sub in ("conversas/sessions", "contexto", "artefatos"):
+        assert (d / sub).is_dir(), sub
+    try:
+        PJ.criar(cfg, "RPG")
+        raise AssertionError("duplicata aceita")
+    except ValueError as e:
+        assert "já existe" in e.args[0]
+    try:
+        PJ.criar(cfg, "!!!")
+        raise AssertionError("nome inválido aceito")
+    except ValueError:
+        pass
+
+    # 4) contexto: anotações datadas + leitura
+    PJ.anotar(cfg, "rpg", "grupo decidiu: sistema d20")
+    PJ.anotar(cfg, "rpg", "próxima sessão: capa do dungeon")
+    txt = PJ.ler_contexto(cfg, "rpg")
+    assert "d20" in txt and "capa do dungeon" in txt
+    got = PJ.obter(cfg, "rpg")
+    assert got["n_anotacoes"] == 2 and got["n_conversas"] == 0
+    try:
+        PJ.anotar(cfg, "inexistente", "x")
+        raise AssertionError("projeto fantasma aceito")
+    except ValueError as e:
+        assert "não existe" in e.args[0]
+
+    # 5) artefatos: salvos DENTRO do node; nome perigoso → erro
+    info = PJ.salvar_artefato(cfg, "rpg", "ficha.md", "# Ficha\n- Guerreiro")
+    art = d / "artefatos" / "ficha.md"
+    assert art.is_file() and "Guerreiro" in art.read_text(encoding="utf-8")
+    assert info["bytes"] > 0
+    for ruim in ("../fora.md", "a/b", "", "."):
+        try:
+            PJ.salvar_artefato(cfg, "rpg", ruim, "x")
+            raise AssertionError(f"nome perigoso aceito: {ruim!r}")
+        except ValueError:
+            pass
+    assert PJ.artefatos_do(cfg, "rpg") == ["ficha.md"]
+
+    # 6) árvore do node: a estrutura que o operador desenhou
+    arv = PJ.arvore(cfg, "rpg")
+    for trecho in ("projeto: rpg", "conversas: 0", "anotação(ões)",
+                   "artefatos: 1", "ficha.md"):
+        assert trecho in arv, trecho
+    assert "rpg" in PJ.arvore(cfg)            # sem slug: lista os nodes
+
+    # 7) CONVERSAS dentro do node + isolamento do escopo global
+    store = PJ.store_do(cfg, "rpg")
+    s = store.new_session()
+    assert s.get("projeto") == "rpg"
+    store.append(s["id"], "user", "cria o vilão da campanha")
+    arq_node = d / "conversas" / "sessions" / f"{s['id']}.json"
+    assert arq_node.is_file()
+    glob_sessions = Path(cfg.data_dir) / "conversations" / "sessions"
+    assert not any(f.name == f"{s['id']}.json"
+                   for f in glob_sessions.glob("*.json"))
+    store.set_current(s["id"])                # current do node…
+    assert (d / "conversas" / "current.json").is_file()
+    assert not (Path(cfg.data_dir) / "conversations"       # …não polui o
+                / "current.json").exists()                 # global
+    assert PJ.obter(cfg, "rpg")["n_conversas"] == 1
+    g = ConversationStore(cfg)                # global segue intacto
+    gs = g.new_session()
+    assert "projeto" not in gs
+    g.append(gs["id"], "user", "conversa solta")
+    assert (glob_sessions / f"{gs['id']}.json").is_file()
+
+    # 8) arquivar/reativar
+    PJ.arquivar(cfg, "rpg")
+    assert "[arquivado]" in PJ.arvore(cfg, "rpg")
+    PJ.reativar(cfg, "rpg")
+    assert "[arquivado]" not in PJ.arvore(cfg, "rpg")
+
+    # 9) tool 37ª: registrada, spec, dispatch pelo EXECUTORS
+    nomes = {t["function"]["name"] for t in TOOLS}
+    assert "projeto" in nomes and len(nomes) == 37
+    spec = [t for t in TOOLS
+            if t["function"]["name"] == "projeto"][0]["function"]
+    assert spec["parameters"]["required"] == ["acao"]
+    assert "NODES" in spec["description"]
+    out = EXECUTORS["projeto"]({"acao": "arvore"}, fresh())
+    assert "nenhum projeto" in out              # honesto quando vazio
+    out = EXECUTORS["projeto"]({"acao": "criar", "nome": "Cozinha"}, cfg)
+    assert "criado" in out and "'cozinha'" in out
+    EXECUTORS["projeto"]({"acao": "anotar", "projeto": "cozinha",
+                          "texto": "receita de pão"}, cfg)
+    out = EXECUTORS["projeto"]({"acao": "contexto", "projeto": "cozinha"},
+                               cfg)
+    assert "receita de pão" in out
+    out = EXECUTORS["projeto"]({"acao": "artefato", "projeto": "cozinha",
+                                "nome": "lista.md", "conteudo": "leite"},
+                               cfg)
+    assert "lista.md" in out and "salvo" in out
+    out = EXECUTORS["projeto"]({"acao": "arvore", "projeto": "rpg"}, cfg)
+    assert "rpg" in out and "conversas: 1" in out
+    out = EXECUTORS["projeto"]({"acao": "arvore", "projeto": "fantasma"},
+                               cfg)
+    assert "não existe" in out                  # erro honesto p/ cérebro
+    out = EXECUTORS["projeto"]({"acao": "voar"}, cfg)
+    assert "desconhecida" in out
+
+    # 10) /api/chat: projeto inexistente → 400 explícito; existente →
+    #     a mensagem do usuário nasce DENTRO do node
+    c = _app(cfg)
+    r = c.post("/api/chat", json={"message": "oi", "projeto": "fantasma"})
+    assert r.status_code == 400
+    # jsonify escapa Unicode (n\u00e3o) — o contrato vive no JSON decodificado
+    assert "não existe" in (r.get_json() or {}).get("msg", "")
+    from pluto import orchestrator as orc
+    orig = orc.run_pipeline
+    orc.run_pipeline = lambda *a, **k: "resposta"
+    try:
+        resp = c.post("/api/chat", json={"message": "cria o vilão",
+                                         "projeto": "rpg",
+                                         "agent": "pluto"})
+        evs = [json.loads(l) for l in resp.get_data(as_text=True).splitlines()
+               if l.strip()]
+        assert "done" in [e.get("type") for e in evs]
+    finally:
+        orc.run_pipeline = orig
+    sess = sorted((d / "conversas" / "sessions").glob("*.json"))
+    assert any("cria o vilão" in f.read_text(encoding="utf-8")
+               for f in sess), "mensagem não caiu no node do projeto"
+
+    # 11) CLI: parser + ciclo criar → anotar → contexto
+    from pluto.cli import build_parser
+    parser = build_parser()
+    args = parser.parse_args(["projeto"])
+    assert args.acao == "arvore"
+    args = parser.parse_args(["projeto", "criar", "Estudo", "inglês",
+                              "todo", "dia"])
+    assert args.nome == "Estudo" and args.texto == ["inglês", "todo", "dia"]
+    PJ.cmd(args, cfg)                          # cria via CLI
+    assert PJ.obter(cfg, "estudo") is not None
+    args = parser.parse_args(["projeto", "anotar", "estudo", "lição 1 ok"])
+    PJ.cmd(args, cfg)
+    assert "lição 1 ok" in PJ.ler_contexto(cfg, "estudo")
 
 
 if __name__ == "__main__":

@@ -846,6 +846,12 @@ def cmd_grafo(args) -> None:
     grafo.cmd(args, _cfg(args))
 
 
+def cmd_projeto(args) -> None:
+    """v9.0.0 (P8): projetos como nodes (conversas/contexto/artefatos)."""
+    from . import projetos
+    projetos.cmd(args, _cfg(args))
+
+
 def cmd_revisar(args) -> None:
     """v4.5.0 (PR#8): revisão de diff — gate único pré-push."""
     from . import revisar
@@ -1122,6 +1128,18 @@ def build_parser() -> argparse.ArgumentParser:
     gp.add_argument("de", help="símbolo de origem")
     gp.add_argument("para", help="símbolo de destino")
     p.set_defaults(fn=cmd_grafo)
+
+    p = sub.add_parser(
+        "projeto",
+        help="📁 projetos como nodes: conversas, contexto e artefatos "
+             "de cada projeto juntos (v9.0.0)")
+    p.add_argument("acao", nargs="?", default="arvore",
+                   help="arvore|criar|anotar|contexto|arquivar|reativar")
+    p.add_argument("nome", nargs="?", default=None,
+                   help="nome do projeto (criar/anotar/…)")
+    p.add_argument("texto", nargs="*", default=[],
+                   help="descrição (criar) ou anotação (anotar)")
+    p.set_defaults(fn=cmd_projeto)
 
     p = sub.add_parser("revisar",
                        help="🔍 revisa o git diff HEAD (gate único pré-push; v4.5.0)")

@@ -19,9 +19,19 @@ MAX_SESSIONS = 200
 
 
 class ConversationStore:
-    def __init__(self, cfg):
+    def __init__(self, cfg, projeto: str | None = None):
         self.cfg = cfg
-        self.sessions_dir = cfg.conversations_dir / "sessions"
+        # V9.0.0 (P8 · T253): sessões de um PROJETO vivem DENTRO do node
+        # (<data>/projetos/<slug>/conversas/) — convenção compartilhada
+        # com pluto/projetos.py (uma fonte: store_do). Sem projeto: o
+        # caminho global original, inalterado.
+        self.projeto = (projeto or "").strip() or None
+        if self.projeto:
+            base = Path(cfg.data_dir) / "projetos" / self.projeto / "conversas"
+        else:
+            base = cfg.conversations_dir
+        self._base = base
+        self.sessions_dir = base / "sessions"
 
     # ----------------------------------------------------------- internals
     def _path(self, session_id: str) -> Path:
@@ -39,6 +49,8 @@ class ConversationStore:
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "messages": [],
         }
+        if self.projeto:
+            session["projeto"] = self.projeto   # node de origem (P8)
         self._ensure_dir()
         self.save(session)
         return session
@@ -143,8 +155,10 @@ class ConversationStore:
 
     # --------------------------------------------------------- ponteiro
     def set_current(self, session_id: str | None) -> None:
-        self.cfg.conversations_dir.mkdir(parents=True, exist_ok=True)
-        path = self.cfg.conversations_dir / "current.json"
+        # P8: o ponteiro vive na BASE do store — projeto não polui o
+        # current.json global (e o global não mexe no do projeto)
+        self._base.mkdir(parents=True, exist_ok=True)
+        path = self._base / "current.json"
         if session_id and SESSION_ID_RE.fullmatch(session_id):
             path.write_text(json.dumps({"id": session_id}), encoding="utf-8")
         else:

@@ -837,6 +837,50 @@ TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "projeto",
+            "description": (
+                "Projetos como NODES (v9.0.0): cada projeto (ex.: rpg) "
+                "mantém JUNTOS suas CONVERSAS, seu CONTEXTO (contexto.md "
+                "+ anotações datadas) e os ARTEFATOS/RECURSOS GERADOS, "
+                "em projetos/<slug>/ do data-dir. Ações: 'arvore' (sem "
+                "projeto: lista os nodes; com projeto: mostra a árvore "
+                "com contagens), 'criar' (nome, descricao), 'anotar' "
+                "(projeto, texto — acrescenta ao contexto do projeto), "
+                "'contexto' (projeto — lê o contexto do node), "
+                "'artefato' (projeto, nome, conteudo — salva recurso "
+                "gerado DENTRO do projeto), 'arquivar' e 'reativar' "
+                "(projeto). Use quando o usuário mencionar um projeto "
+                "(ex.: 'no projeto RPG…') ou quando um trabalho gerar "
+                "artefatos que pertencem a um projeto."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "acao": {"type": "string",
+                             "enum": ["arvore", "criar", "anotar",
+                                      "contexto", "artefato", "arquivar",
+                                      "reativar"],
+                             "description": "ação no node"},
+                    "projeto": {"type": "string",
+                                "description": "slug ou nome do projeto"},
+                    "nome": {"type": "string",
+                             "description": "nome do projeto (criar) ou "
+                                            "do artefato (artefato)"},
+                    "descricao": {"type": "string",
+                                  "description": "descrição (criar)"},
+                    "texto": {"type": "string",
+                              "description": "anotação (anotar)"},
+                    "conteudo": {"type": "string",
+                                 "description": "conteúdo do artefato "
+                                                "(artefato)"}
+                },
+                "required": ["acao"]
+            }
+        },
+    },
 ]
 
 TOOL_NAMES = {t["function"]["name"] for t in TOOLS}
@@ -1708,6 +1752,49 @@ def verificar_resposta(args: dict, cfg) -> str:
     return "\n".join(linhas)
 
 
+def projeto_tool(args: dict, cfg) -> str:
+    """v9.0.0 (P8): projetos como nodes — conversas, contexto e
+    artefatos juntos por projeto (pluto/projetos.py)."""
+    from . import projetos as PJ
+    a = str(args.get("acao") or "").strip().lower()
+    alvo = str(args.get("projeto") or args.get("nome") or "").strip()
+    try:
+        if a == "arvore":
+            return PJ.arvore(cfg, alvo or None)
+        if a == "criar":
+            node = PJ.criar(cfg, str(args.get("nome") or ""),
+                            str(args.get("descricao") or ""))
+            return (f"📁 projeto '{node['slug']}' criado"
+                    + (f" — {node['descricao']}" if node["descricao"] else "")
+                    + " — use acao 'arvore' para ver o node e "
+                      "'anotar'/'artefato' para alimentá-lo")
+        if a == "anotar":
+            PJ.anotar(cfg, alvo, str(args.get("texto") or ""))
+            n = PJ.obter(cfg, alvo) or {}
+            return (f"📝 anotação registrada em '{PJ.slugificar(alvo)}' "
+                    f"({n.get('n_anotacoes', '?')} no total) — acao "
+                    f"'contexto' lê o node")
+        if a == "contexto":
+            txt = PJ.ler_contexto(cfg, alvo)
+            return txt if txt else "(contexto vazio — use acao 'anotar')"
+        if a == "artefato":
+            info = PJ.salvar_artefato(
+                cfg, alvo, str(args.get("nome") or ""),
+                str(args.get("conteudo") or ""))
+            return (f"💾 artefato salvo: {info['artefato']} "
+                    f"({info['bytes']} bytes) em {info['caminho']}")
+        if a == "arquivar":
+            PJ.arquivar(cfg, alvo)
+            return f"📦 projeto '{PJ.slugificar(alvo)}' arquivado"
+        if a == "reativar":
+            PJ.reativar(cfg, alvo)
+            return f"▶️ projeto '{PJ.slugificar(alvo)}' reativado"
+        return ("✖ ação desconhecida — arvore|criar|anotar|contexto|"
+                "artefato|arquivar|reativar")
+    except ValueError as e:
+        return f"✖ {e}"
+
+
 def agenda_criar(args: dict, cfg) -> str:
     """v8.5.0: cria evento no Google Calendar (conta vinculada)."""
     from . import agendacfg
@@ -1735,6 +1822,7 @@ EXECUTORS = {
     "autoavaliar": autoavaliar,
     "tarefa_checkpoint": tarefa_checkpoint,
     "verificar_resposta": verificar_resposta,
+    "projeto": projeto_tool,
     "agenda_criar": agenda_criar,
     "edit_file": edit_file,
     "proc_start": proc_start,
