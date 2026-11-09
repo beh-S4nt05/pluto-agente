@@ -11550,7 +11550,12 @@ def T251_sandbox_jail_provada():
     if SK.probe() is None:
         argv, fds = envolver_comando(fresh(), ["git", "status"], "/tmp")
         assert argv == ["git", "status"] and fds == ()
+        print("     ↳ T251: bwrap/userns indisponível neste host — "
+              "degradação honesta validada (a jaula REAL é provada no "
+              "CI Linux)")
         return              # CI Linux (bwrap instalado) prova o resto
+
+    print(f"     ↳ T251: jaula REAL em execução (nível {SK.probe()})")
 
     # 3) JAILA DE VERDADE: escrever FORA do workspace → falha
     cfg = fresh()

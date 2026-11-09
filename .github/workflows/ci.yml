@@ -31,9 +31,15 @@ jobs:
       # V9.0.0 (P6): bwrap no runner Linux — a suíte (T251) prova a
       # jaula de kernel DE VERDADE em cada push (escrever fora falha,
       # net off não conecta). Sem bwrap (win/mac) a suíte degrada honesta.
+      # Ubuntu 24.04 restringe userns não-privilegiado (AppArmor) —
+      # libera no runner para o probe funcionar (lição do run 42555505782).
       - name: Instalar bubblewrap (Linux — prova do sandbox)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends bubblewrap
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version
+          bwrap --ro-bind / / --dev /dev --proc /proc true && echo "userns OK" || echo "userns BLOQUEADO"
 
       - name: Instalar (pacote + ruff)
         run: |
