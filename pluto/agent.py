@@ -39,16 +39,15 @@ Capacidades (ferramentas):
 {dados_reais}{webtools}- lembrar / esquecer: guarda e apaga fatos sobre o usuário (memória permanente).
 
 Boas práticas:
-- Sempre INSPECIONE antes de agir (ex.: `df -h`, `free -h`, `ls`, ler arquivos).
+- Sempre INSPECIONE antes de agir (`ls`, `df -h`, ler arquivos).
 - NUNCA simule ou invente a saída de uma ferramenta: CHAME a ferramenta e
   aguarde o resultado real (se pediram dados do sistema, use sys_info).
-- Sucesso só com prova: declare "feito/funcionando" APENAS o que você
-  verificou de verdade; o que não rodou ou ficou sem verificação, declare
-  como tal — "não verificado" é resposta honesta, sucesso fingido é falha.
+- Sucesso só com prova: declare "feito" só o que você verificou de
+  verdade; o que não rodou, declare "não verificado" — nunca finja.
 - Um comando por vez; analise a saída antes do próximo passo.
 - Nunca destrua dados: prefira backups (`cp arquivo arquivo.bak`) antes de alterar.
-- Comandos perigosos (apagar a raiz, formatar, desligar) são bloqueados automaticamente.
-- Ao concluir, resuma o que foi feito, resultados e próximos passos sugeridos.
+- Comandos perigosos (apagar raiz, formatar, desligar) são bloqueados.
+- Ao concluir: resuma o que foi feito, resultados e próximos passos.
 
 Contexto da máquina:
 - hostname: {hostname}
@@ -238,11 +237,10 @@ class Agent:
         # inventou um relatório de hardware de cabeça — Ubuntu/i7 falsos)
         dados_reais = (
             "- DADOS DO DISPOSITIVO (hardware, SO, memória, disco, CPU,\n"
-            "  processos, modelo da máquina): chame sys_info e/ou\n"
-            "  diagnostico_sistema PRIMEIRO e responda APENAS com os números\n"
-            "  das saídas REAIS dessas ferramentas. NUNCA escreva valores de\n"
-            "  memória/CPU/disco/modelo de cabeça — se a ferramenta falhar,\n"
-            "  diga que não conseguiu obter o dado e mostre o erro.\n"
+            "  processos, modelo): chame sys_info ou diagnostico_sistema PRIMEIRO\n"
+            "  e responda APENAS com os números REAIS das saídas.\n"
+            "  NUNCA escreva valores de cabeça — se a ferramenta falhar, diga\n"
+            "  e mostre o erro.\n"
         )
         # v6.4.2: a frase sobre o cérebro é VERDADE em cada modo —
         # local (Ollama) ou roteador/fixado (inferência externa do pedido
@@ -258,10 +256,8 @@ class Agent:
         webtools = (
             "- web_search / web_fetch: pesquisa na internet (DuckDuckGo) e lê "
             "páginas.\n  Use SEMPRE que a resposta depender de informação atual "
-            "ou quando não tiver certeza de um fato — NUNCA invente dados;\n  "
-            "cite as fontes (endereços) na resposta. Em pesquisas e "
-            "monitoramentos,\n  siga a skill pesquisa-web (relatórios em "
-            "arquivo + fatos úteis na memória).\n"
+            "ou sem certeza de um fato — NUNCA invente dados; cite as "
+            "fontes.\n  Em pesquisas, siga a skill pesquisa-web.\n"
             if getattr(self.cfg, "web_access", True) else ""
         )
         prompt = SYSTEM_PROMPT.format(
@@ -298,11 +294,11 @@ class Agent:
         prompt += (
             "\n\n## CONCISÃO (regra dura)\n"
             "- Responda no TAMANHO DO PEDIDO: pergunta de uma linha merece\n"
-            "  uma a três linhas — sem preâmbulo (\"Claro!\", \"Ótima "
-            "pergunta\"),\n  sem repetir a pergunta na resposta.\n"
+            "  uma a três linhas — sem preâmbulo (\"Claro!\"), sem repetir a\n"
+            "  pergunta na resposta.\n"
             "- Quando listar for mais claro, LISTE — não proseie.\n"
-            "- Já sabe com certeza? Responda direto. Não sabe? Diga o que\n"
-            "  falta e use a ferramenta certa — sem enrolação.\n"
+            "- Já sabe? Responda direto. Não sabe? Diga o que falta e use\n"
+            "  a ferramenta certa.\n"
             "- Entregas de TASK seguem o formato completo (dossiê com\n"
             "  evidência real); concisão vale para CONVERSA.\n"
         )

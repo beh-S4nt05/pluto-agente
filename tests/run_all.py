@@ -11625,6 +11625,12 @@ def T252_honestidade_radical_no_cerne():
     assert "não verificado" in prompt
     assert "NUNCA simule" in prompt            # regra v2.2.5 intacta
     assert len(prompt) < 6000, f"prompt inflou: {len(prompt)} chars"
+    # orçamento VISÍVEL no log (lição do run 42569160824: o tamanho do
+    # prompt varia com o caminho de checkout do runner — CI ubuntu/macos
+    # ≈ +400 chars vs. máquina local; sem esse número no log, "verde"
+    # não prova margem)
+    print(f"     ↳ T252: prompt {len(prompt)}/6000 chars (caminhos do "
+          f"host influenciam — ver docs/PORTABILIDADE.md)")
 
 
 if __name__ == "__main__":

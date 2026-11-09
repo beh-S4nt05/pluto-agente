@@ -322,8 +322,8 @@ class SkillLoader:
         ocultas = len(skills) - len(visiveis)
         skills = visiveis
         lines = [
-            "Habilidades (skills) instaladas — quando a tarefa combinar com uma skill, "
-            "PRIMEIRO leia o SKILL.md dela com a ferramenta read_file e siga as instruções:",
+            "Habilidades (skills) — se a tarefa combinar com uma, PRIMEIRO "
+            "leia o SKILL.md dela (read_file) e siga as instruções:",
         ]
         # v3.15.0 (PR#2): seção ORÇADA — o catálogo cresce (39+ skills)
         # sem inflar o prompt: até 18 linhas, priorizando as relevantes
@@ -348,11 +348,10 @@ class SkillLoader:
             lines.append(f"- {s['name']}: {desc} — ler: {s['skill_md']}")
         outras = len(skills) - len(escolhidas)
         if outras > 0:
-            lines.append(f"(+{outras} outras skills — catálogo completo: "
-                         f"list_dir {self.dirs[0][0]})")
+            lines.append(f"(+{outras} outras — list_dir {self.dirs[0][0]})")
         if ocultas > 0:
             lines.append(f"(+{ocultas} skills avançadas além do perfil "
-                         f"{cap.perfil} do cérebro ativo — pluto capacidades)")
+                         f"{cap.perfil} — pluto capacidades)")
         return "\n".join(lines)
 
     def read_skill_md(self, path: str) -> str:
