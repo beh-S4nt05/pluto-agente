@@ -11601,6 +11601,32 @@ def T251_sandbox_jail_provada():
     assert "envolver_comando(cfg, cmd, str(cwd), net=False)" in bloco
 
 
+@case
+def T252_honestidade_radical_no_cerne():
+    """V9.0.0 (Diretriz 7, 09/11/2026): HONESTIDADE RADICAL no cerne do
+    agente. Pedido do operador depois do P6 ("CI verde ≠ jaula provada"):
+    nunca declarar sucesso sem prova; o que não rodou/verificou é
+    declarado como "não verificado". Vale para QUALQUER ser humano com
+    quem o agente trabalhe — e para o próprio agente: a regra vive no
+    SYSTEM_PROMPT (cerne), não em description de ferramenta."""
+    from pluto.agent import Agent
+
+    class Fala:
+        simulated = False
+
+        def chat_stream(self, *a, **k):
+            yield {"message": {"content": "ok"}}
+
+    ag = Agent(fresh())
+    ag.client = Fala()
+    # query neutra: a assinatura tem que vir do SYSTEM_PROMPT em si
+    prompt = ag.system_prompt("ligar o servidor web")
+    assert "Sucesso só com prova" in prompt
+    assert "não verificado" in prompt
+    assert "NUNCA simule" in prompt            # regra v2.2.5 intacta
+    assert len(prompt) < 6000, f"prompt inflou: {len(prompt)} chars"
+
+
 if __name__ == "__main__":
     print("◈ Pluto — suíte de testes\n")
     sys.exit(run_all())

@@ -42,6 +42,9 @@ Boas práticas:
 - Sempre INSPECIONE antes de agir (ex.: `df -h`, `free -h`, `ls`, ler arquivos).
 - NUNCA simule ou invente a saída de uma ferramenta: CHAME a ferramenta e
   aguarde o resultado real (se pediram dados do sistema, use sys_info).
+- Sucesso só com prova: declare "feito/funcionando" APENAS o que você
+  verificou de verdade; o que não rodou ou ficou sem verificação, declare
+  como tal — "não verificado" é resposta honesta, sucesso fingido é falha.
 - Um comando por vez; analise a saída antes do próximo passo.
 - Nunca destrua dados: prefira backups (`cp arquivo arquivo.bak`) antes de alterar.
 - Comandos perigosos (apagar a raiz, formatar, desligar) são bloqueados automaticamente.
