@@ -11272,7 +11272,10 @@ def T245_verificacao_segunda_passada():
     ag = Agent(fresh())
     ag.client = _Fala()
     p = ag.system_prompt("teste")
-    assert "verificar_resposta" not in p and "autoavaliar" not in p
+    # a INSTRUÇÃO sumiu do prompt (assinaturas exatas dela — o catálogo
+    # de skills pode citar os NOMES das tools, ex.: skill
+    # autoavaliar-entrega; isso é descoberta, não instrução)
+    assert "fatos vs. dados" not in p and "perguntar_operador antes" not in p
     assert len(p) < 6000
 
 
@@ -11449,6 +11452,79 @@ def T248_triagem_de_email():
     assert len(out) == 1, out                     # cancelado e dia inteiro fora
     assert out[0]["titulo"] == "Reunião" and out[0]["local"] == "Sala 1"
     assert out[0]["inicio"].hour == 14 and out[0]["conta"] == "eu@x.com"
+
+
+@case
+def T250_skills_v9_adaptadas():
+    """V9.0.0 P5 (T250): skills validadas nas fontes externas, ADAPTADAS
+    — PT-BR, curtas, com exemplo concreto, gatilhos nossos — e GRADUADAS
+    por nivel (P7): pedido-fiel (prompt-master: 9 dimensões, máx 3
+    perguntas), escrever-pedido/pedido-para-plano/interrogar
+    (mattpocock: PRD, plano, grill) e autoavaliar-entrega (o ritual que
+    amarra P2+P3). Catálogo continua limpo na auditoria."""
+    from pluto.config import Config
+    from pluto.skills import SkillLoader
+    from pluto.skills_audit import run_audit
+
+    ESP = {
+        "pedido-fiel": ("leve", ["9 dimensões", "3 perguntas"]),
+        "escrever-pedido": ("leve", ["DEVE", "critérios"]),
+        "pedido-para-plano": ("leve", ["tarefa_checkpoint", "pronto"]),
+        "interrogar": ("rapido", ["perguntar_operador", "borda"]),
+        "autoavaliar-entrega": ("leve", ["verificar_resposta",
+                                         "autoavaliar"]),
+    }
+
+    # 1) as 5 presentes, nivel certo, formato válido
+    cfg = fresh()
+    scan = {s["name"]: s for s in SkillLoader(cfg).scan()}
+    for nome, (nivel, trechos) in ESP.items():
+        assert nome in scan, f"{nome} ausente do catálogo"
+        assert scan[nome]["nivel"] == nivel, (nome, scan[nome]["nivel"])
+        corpo = Path(scan[nome]["skill_md"]).read_text(encoding="utf-8")
+        assert len(corpo.encode("utf-8")) < 8192, nome   # orçamento 8b
+        assert corpo.count("## Exemplo") >= 1, nome      # regra de ouro
+        desc = scan[nome]["description"]
+        assert len(desc) > 80 and "Use" in desc, nome    # gatilhos PT-BR
+        for t in trechos:
+            assert t.lower() in corpo.lower(), (nome, t)
+
+    # 2) graduação P7 no catálogo: interrogar é rapido — some no leve
+    #    (catálogo tem orçamento de 18 linhas por RELEVÂNCIA da query —
+    #    prova com query dirigida, como o agente usa na prática)
+    cat_eco = SkillLoader(cfg).catalog(
+        "confirmar entendimento do pedido antes de executar")
+    assert "pedido-fiel" in cat_eco, cat_eco[:300]
+    cat_leve = SkillLoader(cfg).catalog("pedido plano entrega")
+    assert "autoavaliar-entrega" in cat_leve, cat_leve[:300]
+    assert "interrogar" not in cat_leve and "além do perfil leve" in cat_leve
+    cfg_forte = Config(data_dir=str(cfg.data_dir), mock=True)
+    cfg_forte.update({"capacidades_perfil": "forte"})
+    cat_forte = SkillLoader(cfg_forte).catalog(
+        "interrogar questionar requisitos borda")
+    assert "interrogar" in cat_forte, "skill rapido não subiu no forte"
+
+    # 3) amarração com as tools V9 (cada skill aponta pra tool certa)
+    corpo = Path(scan["autoavaliar-entrega"]["skill_md"]).read_text(
+        encoding="utf-8")
+    assert "verificar_resposta" in corpo and "autoavaliar" in corpo
+    assert "tarefa_checkpoint" in corpo and "perguntar_operador" in corpo
+    assert "tarefa_checkpoint" in Path(
+        scan["pedido-para-plano"]["skill_md"]).read_text(encoding="utf-8")
+
+    # 4) auditoria do catálogo inteiro (55 skills) continua limpa
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = run_audit(cfg, print_fn=lambda *a: None)
+    assert rc == 0, buf.getvalue()[-400:]
+
+    # 5) eco das 9 dimensões do prompt-master está NA skill (adaptação
+    #    fiel, não paráfrase solta)
+    corpo = Path(scan["pedido-fiel"]["skill_md"]).read_text(encoding="utf-8")
+    for dim in ("objetivo", "escopo", "restrições", "prazo", "critério"):
+        assert dim in corpo, dim
 
 
 if __name__ == "__main__":
