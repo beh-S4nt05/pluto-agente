@@ -11527,6 +11527,75 @@ def T250_skills_v9_adaptadas():
         assert dim in corpo, dim
 
 
+@case
+def T251_sandbox_jail_provada():
+    """V9.0.0 P6 (T251): o sandbox de KERNEL provado de VERDADE —
+    escrever FORA do workspace falha, escrever DENTRO funciona, rede
+    desligada no kernel não conecta, e o git do agente roda enjaulado
+    com net=False (operação local não precisa de rede). Sem bwrap no
+    host, degradação honesta (argv inalterado); o CI Linux com bwrap
+    instalado é quem prova a jaula REAL em cada push."""
+    import subprocess as _sp
+    import sys as _sys
+
+    from pluto import plataforma as _plat
+    from pluto import sandbox_kernel as SK
+    from pluto.sandbox_kernel import envolver_comando, fechar_fds
+
+    # 1) filtro seccomp BPF estruturado (instruções sock_filter de 8B)
+    prog = SK.bpf_blocklist()
+    assert len(prog) % 8 == 0 and len(prog) >= 32, len(prog)
+
+    # 2) sem bwrap/userns no host → degradação HONESTA: argv intacto
+    if SK.probe() is None:
+        argv, fds = envolver_comando(fresh(), ["git", "status"], "/tmp")
+        assert argv == ["git", "status"] and fds == ()
+        return              # CI Linux (bwrap instalado) prova o resto
+
+    # 3) JAILA DE VERDADE: escrever FORA do workspace → falha
+    cfg = fresh()
+    wd = cfg.workdir
+    fora = Path(tempfile.mkdtemp(prefix="pluto-fora-")) / "x.txt"
+    argv, fds = envolver_comando(
+        cfg, _plat.shell_argv(f"echo jail > {fora}"), str(wd))
+    try:
+        r = _sp.run(argv, capture_output=True, text=True, timeout=60,
+                    pass_fds=tuple(fds))
+    finally:
+        fechar_fds(fds)
+    assert r.returncode != 0, "jaula deixou escrever FORA do workspace"
+    assert not fora.exists()
+
+    # 4) escrever DENTRO do workspace → funciona normalmente
+    dentro = wd / "jail-ok.txt"
+    argv, fds = envolver_comando(
+        cfg, _plat.shell_argv(f"echo ok > {dentro}"), str(wd))
+    try:
+        r = _sp.run(argv, capture_output=True, text=True, timeout=60,
+                    pass_fds=tuple(fds))
+    finally:
+        fechar_fds(fds)
+    assert r.returncode == 0 and dentro.is_file(), (r.stdout, r.stderr)
+
+    # 5) REDE DESLIGADA no kernel: connect numa porta local → falha
+    argv, fds = envolver_comando(
+        cfg, [_sys.executable, "-c",
+              "import socket; socket.create_connection("
+              "('127.0.0.1', 9), timeout=2)"], str(wd), net=False)
+    try:
+        r = _sp.run(argv, capture_output=True, text=True, timeout=90,
+                    pass_fds=tuple(fds))
+    finally:
+        fechar_fds(fds)
+    assert r.returncode != 0, "jaula com net=False ainda conectou"
+
+    # 6) git do agente: enjaulado com net=False (wiring no fonte)
+    src = Path("pluto/tools.py").read_text(encoding="utf-8")
+    i = src.index("def git_run")
+    bloco = src[i:i + 1500]
+    assert "envolver_comando(cfg, cmd, str(cwd), net=False)" in bloco
+
+
 if __name__ == "__main__":
     print("◈ Pluto — suíte de testes\n")
     sys.exit(run_all())

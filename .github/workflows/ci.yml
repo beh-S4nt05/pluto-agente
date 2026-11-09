@@ -28,6 +28,13 @@ jobs:
         with:
           python-version: "3.13"
 
+      # V9.0.0 (P6): bwrap no runner Linux — a suíte (T251) prova a
+      # jaula de kernel DE VERDADE em cada push (escrever fora falha,
+      # net off não conecta). Sem bwrap (win/mac) a suíte degrada honesta.
+      - name: Instalar bubblewrap (Linux — prova do sandbox)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends bubblewrap
+
       - name: Instalar (pacote + ruff)
         run: |
           python -m pip install --upgrade pip

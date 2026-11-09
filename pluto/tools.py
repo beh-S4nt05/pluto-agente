@@ -1301,9 +1301,19 @@ def git_run(args: dict, cfg) -> str:
         return "BLOQUEADO: config --global/--system altera a máquina do operador — só config local do repositório."
     cmd = ["git", acao] + shlex.split(extra)
     cwd = scope_dir() or cfg.workdir
+    # V9.0.0 (P6): o git do agente também roda na JAULA do kernel —
+    # mesma defesa em profundidade do run_command (root ro + cwd rw),
+    # e como _GIT_OK é só operação LOCAL, a rede vai DESLIGADA no
+    # kernel (net=False): git não tem como vazar nada pela rede.
+    from .sandbox_kernel import envolver_comando, fechar_fds
+    argv, _fds = envolver_comando(cfg, cmd, str(cwd), net=False)
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
-                           check=False, cwd=str(cwd))
+        try:
+            r = subprocess.run(argv, capture_output=True, text=True,
+                               timeout=30, check=False, cwd=str(cwd),
+                               pass_fds=tuple(_fds))
+        finally:
+            fechar_fds(_fds)
     except FileNotFoundError:
         return "ERRO: git não está instalado nesta máquina."
     except subprocess.TimeoutExpired:
