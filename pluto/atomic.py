@@ -36,16 +36,20 @@ def atomic_write(path: Path | str, texto: str) -> None:
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(f"{p.name}.{os.getpid()}.{threading.get_ident()}"
-                      f".{next(_SEQ)}.tmp")
-    tmp.write_text(texto, encoding="utf-8")
-    try:
-        for tentativa in range(4):
+    # cada tentativa usa um tmp NOVO — a janela de contenção do Windows
+    # (leitor com o destino aberto · scanner segurando arquivo fresco)
+    # é transitória: retry com backoff resolve sem perder atomicidade
+    for tentativa in range(8):
+        try:
+            tmp = p.with_name(f"{p.name}.{os.getpid()}.{threading.get_ident()}"
+                              f".{next(_SEQ)}.tmp")
+            tmp.write_text(texto, encoding="utf-8")
             try:
                 os.replace(tmp, p)
                 return
-            except PermissionError:    # Win: destino aberto por leitor
-                time.sleep(0.005 * (tentativa + 1))
-        p.write_text(texto, encoding="utf-8")   # último-vencedor
-    finally:
-        tmp.unlink(missing_ok=True)
+            finally:
+                tmp.unlink(missing_ok=True)
+        except PermissionError:        # WinError 5/13: contenção transitória
+            time.sleep(0.01 * (tentativa + 1))
+    # contenção persistente (raríssimo): escrita direta de último-vencedor
+    p.write_text(texto, encoding="utf-8")
