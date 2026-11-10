@@ -76,3 +76,22 @@ Nenhuma das duas muda conclusão ou severidade.
 
 *docs/VALIDACAO-AUDITORIA-SDD.md · 10/11/2026 · validação executada sobre
 `97d81e7` (main) · suíte 253/253 · CI do HEAD verde nos 3 SOs.*
+
+
+---
+
+## 6. Atualização (10/11/2026) — P8.1 ENTREGUE
+
+Os 3 achados Alta foram corrigidos e provados por regressão:
+- **A1 → T254**: estágios 4/6/7 impostos no `run_pipeline`
+  (missão herda); entrega de task sai com verificação + quadro;
+  conversa segue leve. 256/256, zero teste existente quebrou.
+- **A2 → T255**: `git_run` com denylist na tool (chaves de config
+  que executam comandos + `--output`); PoCs viraram regressão.
+- **A3 → T256**: DLP no envio do secretário — e o teste EXPOS uma
+  lacuna extra: o DLP global só mascarava domínios pessoais;
+  remetente corporativo agora também é mascarado no canal.
+
+Próximos da lista da auditoria: M4 (secrets por data-dir), M7
+(inferência de `ok`), M6 (escritas atômicas), M5 (hook pré-push)
+→ docs → P0.1 → release.

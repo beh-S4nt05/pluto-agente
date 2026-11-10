@@ -11805,6 +11805,165 @@ def T253_projetos_como_nodes():
     assert "lição 1 ok" in PJ.ler_contexto(cfg, "estudo")
 
 
+@case
+def T254_estagios_6_7_impostos_no_pipeline():
+    """V9.0.0 P8.1 (T254): correção do achado A1 da auditoria SDD —
+    os estágios [4] checkpoint, [6] verificação e [7] autoavaliação
+    são IMPOSTOS pelo run_pipeline, não dependem mais do modelo
+    ESCOLHER as tools (entre 37). Toda ENTREGA DE TASK sai com o
+    rodapé de verificação (✓/✗/~ + confiança, quando há afirmações)
+    e o quadro de autoavaliação; o checkpoint task-<tid> é criado no
+    INÍCIO e fechado no FIM; conversa (fast lane) segue leve. Este
+    teste é o GUARD: removeu a imposição do pipeline → ele falha."""
+    from pluto import contexto as CTX
+    from pluto import orchestrator as orc
+
+    cfg = fresh()
+
+    class _Ag:
+        model_override = None
+
+        def run(self, msgs, on_event=None, cancel=None):
+            on_event({"type": "tool_end", "name": "run_command",
+                      "ok": True,
+                      "output": "RESULTADO: 246 OK · 0 falha(s)"})
+            on_event({"type": "done",
+                      "message": "A suíte tem 246 testes."})
+            return "A suíte tem 246 testes."
+
+    evs: list[dict] = []
+    final = orc.run_pipeline(
+        _Ag(), cfg, "verifique a suíte de testes: reporte os 3 números",
+        [], on_event=evs.append)
+
+    # [6] 2ª passada: o "246" da entrega está LASTREADO nos dados da
+    # tool → ✓ e confiança no rodapé anexado à entrega
+    assert "🔎 Verificação" in final and "✓" in final, final[-300:]
+    assert "100%" in final                     # 1 afirmação, 1 lastreada
+    # [7] quadro de autoavaliação contra o pedido (critério extraído)
+    assert "🪞 Autoavaliação" in final and "VEREDICTO" in final
+    # auditoria dos dois estágios gravada (RF-VER-04 / RF-AUT-01)
+    assert (cfg.data_dir / "verificacoes.jsonl").is_file()
+    assert (cfg.data_dir / "autoavaliacoes.jsonl").is_file()
+    # [4] checkpoint AMARRADO à task: criado no início e FECHADO
+    reg = CTX.carregar(cfg, "task-T0001")
+    assert reg is not None and reg["status"] == "concluida", reg
+    assert "suíte" in str(reg.get("objetivo", ""))
+    assert any(str(c.get("id", "")).startswith("task-")
+               for c in CTX.listar(cfg, so_ativas=False))
+
+    # conversa (fast lane) segue LEVE — sem imposição (SPEC §4:
+    # concisão vale para CONVERSA; os estágios são da ENTREGA de task)
+    class _Ag2:
+        model_override = None
+
+        def run(self, msgs, on_event=None, cancel=None):
+            on_event({"type": "done", "message": "olá, tudo certo?"})
+            return "olá, tudo certo?"
+
+    final2 = orc.run_pipeline(_Ag2(), cfg, "oi", [], on_event=evs.append)
+    assert "Autoavaliação" not in final2 and "Verificação" not in final2
+
+
+@case
+def T255_git_run_endurecido_auditoria():
+    """V9.0.0 P8.1 (T255): achado A2 da auditoria SDD — os dois PoCs
+    viram regressão. Sem bwrap (mac/win) o git_run escapava da jaula:
+    (1) `git config core.fsmonitor '<cmd>'` + status EXECUTAVA comando
+    arbitrário no host; (2) `git diff --output=/tmp/x` escrevia FORA
+    do workspace. Agora: chaves de config que executam comandos e
+    --output são BLOQUEADOS NA TOOL (vale com e sem bwrap); config
+    comum e diff normal seguem funcionando."""
+    from pluto.tools import execute_tool
+
+    cfg = fresh()
+
+    def git(**a):
+        r = execute_tool("git_run", a, cfg)
+        return bool(r["ok"]), str(r["output"])
+
+    ok, _ = git(action="init")
+    assert ok
+
+    # (1) PoC fsmonitor: comando arbitrário — agora BLOQUEADO
+    ok, out = git(action="config",
+                  args="core.fsmonitor 'touch /tmp/pluto-poc-a2'")
+    assert not ok and "BLOQUEADO" in out, out[:120]
+    assert not os.path.exists("/tmp/pluto-poc-a2")
+    ok, _ = git(action="status")            # e o status NÃO executa nada
+    for chave in ("core.sshCommand", "core.hooksPath", "core.pager",
+                  "core.editor", "alias.x"):
+        ok, out = git(action="config", args=f"{chave} 'x'")
+        assert not ok and "BLOQUEADO" in out, chave
+
+    # (2) PoC --output: escrita fora do workspace — agora BLOQUEADO
+    ok, out = git(action="diff", args="--output=/tmp/pluto-poc-a2b")
+    assert not ok and "BLOQUEADO" in out, out[:120]
+    ok, out = git(action="log", args="--output /tmp/pluto-poc-a2c")
+    assert not ok and "BLOQUEADO" in out, out[:120]
+    assert not os.path.exists("/tmp/pluto-poc-a2b")
+
+    # regressão inversa: config comum e diff normal SEGUEM funcionando
+    ok, _ = git(action="config", args="user.email poc@local")
+    assert ok
+    ok, _ = git(action="config", args="user.name poc")
+    assert ok
+    (cfg.workdir / "a.txt").write_text("1\n", encoding="utf-8")
+    git(action="add", args="a.txt")
+    git(action="commit", args="-m x")
+    (cfg.workdir / "a.txt").write_text("1\n2\n", encoding="utf-8")
+    ok, out = git(action="diff")
+    assert ok and "a.txt" in out            # saída no stdout, como deve
+
+
+@case
+def T256_secretario_com_dlp():
+    """V9.0.0 P8.1 (T256): achado A3 da auditoria SDD — o secretário
+    vazava remetente/assunto/agenda/diário no Telegram sem máscara
+    (0 chamadas a mascarar; o Modo Vida já fazia certo). Agora TODO
+    texto que sai (briefing via canal.enviar e avisos via _avisar —
+    gargalo dos lembretes) passa pelo DLP: e-mail/CPF/segredo →
+    [REDACTED:…]; o conteúdo útil (assunto, título, horário) segue."""
+    from pluto import secretario
+
+    class Canal(list):
+        def enviar(self, texto, chat_id=None):
+            self.append(texto)
+
+    cfg = fresh()
+    canal = Canal()
+
+    # briefing: montar com dado pessoal e enviar → canal recebe MASCARADO
+    orig = secretario.montar_briefing
+    secretario.montar_briefing = lambda c, **k: {
+        "ok": True,
+        "texto": "☀️ BOM DIA — briefing\n📧 Fatura vence (joao@exemplo.com)"
+                " · CPF do titular: 123.456.789-00",
+        "agenda": "", "tarefas": [], "emails": None, "diario": []}
+    try:
+        r = secretario.enviar_briefing(cfg, _canal=canal)
+        assert r["ok"], r
+        enviado = canal[-1]
+        assert "BOM DIA" in enviado                # conteúdo útil segue
+        assert "joao@exemplo.com" not in enviado   # e-mail NÃO sai
+        assert "123.456.789-00" not in enviado     # CPF NÃO sai
+        assert "[REDACTED" in enviado
+    finally:
+        secretario.montar_briefing = orig
+
+    # lembrete: _avisar é o gargalo — mascarado também
+    from datetime import datetime, timedelta
+    daqui = datetime.now().astimezone() + timedelta(minutes=10)
+    evs_fake = lambda c: [{"titulo": "Call com maria@corp.com",
+                           "inicio": daqui}]
+    enviados = secretario.checar_lembretes(cfg, agora=datetime.now()
+                                           .astimezone(),
+                                           _eventos=evs_fake, _canal=canal)
+    assert enviados, "lembrete deveria disparar"
+    assert "maria@corp.com" not in canal[-1]
+    assert "[REDACTED" in canal[-1] and "Call" in canal[-1]
+
+
 if __name__ == "__main__":
     print("◈ Pluto — suíte de testes\n")
     sys.exit(run_all())

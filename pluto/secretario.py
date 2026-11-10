@@ -91,8 +91,32 @@ def _canal_default(cfg):
         return None
 
 
+# P8.1 (A3): nenhum e-mail (pessoal OU corporativo) sai pelo canal —
+# o DLP global só cobre domínios pessoais; remetente corporativo é
+# dado pessoal no Telegram do operador
+_EMAIL_GENERICO = _re.compile(
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+
+
+def _dlp(texto: str) -> str:
+    """V9.0.0 (P8.1 · auditoria SDD A3): NFR-01 — o que SAI pelo canal
+    do secretário leva máscara (mesma do Modo Vida): e-mails/CPF/
+    segredos viram [REDACTED:…]. O conteúdo útil (assuntos, títulos,
+    horários) segue — remetente/contato pessoal não. O DLP global só
+    cobre domínios pessoais (gmail/…); remetente CORPORATIVO é dado
+    pessoal no canal → regra própria aqui, onde o risco está."""
+    try:
+        from .varredura import mascarar
+        texto = mascarar(texto)
+    except Exception:  # noqa: BLE001
+        pass
+    return _EMAIL_GENERICO.sub("[REDACTED:email]", texto)
+
+
 def _avisar(cfg, canal, texto: str) -> None:
-    """Entrega no melhor canal disponível — nunca silencioso."""
+    """Entrega no melhor canal disponível — nunca silencioso.
+    P8.1: o texto sai SEMPRE mascarado (DLP — auditoria SDD A3)."""
+    texto = _dlp(texto)
     if canal is not None:
         canal.enviar(texto)
         return
@@ -267,7 +291,7 @@ def enviar_briefing(cfg, _canal=None) -> dict:
         return {"ok": False,
                 "msg": "Telegram não configurado — pluto telegram start "
                        "(briefing impresso no notify)", "texto": br["texto"]}
-    canal.enviar(br["texto"])
+    canal.enviar(_dlp(br["texto"]))   # P8.1 (A3): sai mascarado
     return {"ok": True, "msg": "briefing enviado", "texto": br["texto"]}
 
 

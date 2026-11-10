@@ -11,8 +11,8 @@
 > verificado" é estado válido, sucesso fingido não).
 >
 > Operador: **Breno** · Repo: `beh-S4nt05/pluto-agente` (main) ·
-> Suíte: **253 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
-> (ubuntu · macos · windows) — último verde: run 42578961078 (P8).
+> Suíte: **256 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
+> (ubuntu · macos · windows) — último verde: ver §8.
 
 ---
 
@@ -170,7 +170,12 @@ SO (`plataforma` — único lugar onde Unix-ismos vivem).
 
 **Regra do macro-fluxo**: nenhum entrega pula [6] e [7] — verificar e
 autoavaliar são **arquitetura**, não opção. O perfil do cérebro muda a
-*profundidade*, nunca a existência do estágio.
+*profundidade*, nunca a existência do estágio. **P8.1 (T254)**: a regra
+é IMPOSTA pelo `run_pipeline` — toda entrega de TASK sai com o rodapé
+de verificação (✓/✗/~ + confiança) e o quadro de autoavaliação
+anexados pelo pipeline, e o checkpoint `task-<tid>` é criado no início
+e fechado no fim; conversa (fast lane) segue leve. (Correção do achado
+A1 da auditoria SDD: antes a regra vivia só nesta spec.)
 
 ---
 
@@ -216,6 +221,11 @@ autoavaliar são **arquitetura**, não opção. O perfil do cérebro muda a
   locais (`_GIT_OK`: init/status/add/commit/log/diff/branch/checkout/
   show/tag/restore/stash/config) rodam sem rede no kernel;
   fetch/push seguem pelo `run_command` (que decide rede).
+  **P8.1 (T255, auditoria A2)**: denylist NA TOOL, valendo com ou sem
+  bwrap — chaves de config que EXECUTAM comandos no host
+  (`core.fsmonitor`/`core.sshCommand`/`core.hooksPath`/`core.pager`/
+  `core.editor`/`alias.*`…) e `--output` (escrita fora do workspace)
+  são BLOQUEADOS; config comum e diff normal seguem.
 - **RF-EXE-05** Comandos perigosos (raiz, formatar, desligar)
   bloqueados por denylist (POLITICAS.md). **Dívida declarada**: T107 —
   denylist não resolve symlink (prioridade 1 do P0.1).
@@ -316,6 +326,9 @@ projetos/rpg/
   da resposta é conferida contra os DADOS das tools — ✓ lastreada ·
   ✗ sem lastro · ~ incerta (declarar); score de confiança no rodapé;
   veredicto `entregar|corrigir|declarar-incertezas|perguntar-operador`.
+  **P8.1 (T254): IMPOSTA pelo run_pipeline** — o rodapé é anexado à
+  entrega de TASK com os dados reais colhidos dos eventos `tool_end`
+  (não depende do modelo escolher a tool).
 - **RF-VER-02** Regra dura: **destrutiva + ✗ (ou confiança <80) →
   perguntar_operador** (nunca executar às cegas).
 - **RF-VER-03** Juiz opcional pelo cérebro (mesmo contrato, JSON
@@ -324,14 +337,19 @@ projetos/rpg/
   vazar a resposta (D2).
 - **RF-AUT-01** Autoavaliação (P3·T246): quadro ✅/⚠️/✖ contra
   critérios EXTRAÍDOS do pedido original, com evidência e veredicto;
-  `autoavaliacoes.jsonl`; tool `autoavaliar` (34ª).
+  `autoavaliacoes.jsonl`; tool `autoavaliar` (34ª). **P8.1 (T254):
+  IMPOSTA pelo run_pipeline** — o quadro acompanha toda entrega de
+  TASK.
 - **Verificação**: T245 · T246 · T252 (regra no cerne do prompt).
 
 ### 5.7 Secretário proativo (P4)
 
 - **RF-SEC-01** Briefing diário no Telegram (agenda + pendências +
   e-mails), 1 mensagem, sem pedir — opt-in (`briefing_on=False`,
-  `briefing_hora="07:00"`).
+  `briefing_hora="07:00"`). **P8.1 (T256, auditoria A3)**: o que SAI
+  pelo canal é mascarado (DLP): assunto/título/horário seguem,
+  remetente/e-mail/CPF/segredo NÃO saem (`[REDACTED:…]`) — fim da
+  contradição com NFR-01.
 - **RF-SEC-02** Lembretes de compromissos (`lembrete_min=30` antes).
 - **RF-SEC-03** Triagem de e-mail com ação sugerida
   (`email_triagem_on=False`) — opt-in consciente.
@@ -452,6 +470,7 @@ testes + CI verde nos 3 SOs + docs + relatório."
 | P6 | Sandbox provado de verdade (git enjaulado, net=False) | T251 | ✅ 09/11 |
 | — | Diretriz 7 no cerne (honestidade radical) | T252 | ✅ 09/11 |
 | P8 | Projetos como nodes (grupo de conversas) | T253 | ✅ 09/11 · CI 42578961078 verde 3 SOs · 253/253 |
+| P8.1 | Correção dos 3 bloqueadores da auditoria SDD (estágios 4/6/7 impostos no pipeline · git_run endurecido · DLP no secretário) | T254–T256 | ✅ 10/11 |
 | P0.1 | Queimar dívida win/mac (43 testes) + T107 | — | ⏳ pendente |
 | — | **Release v9.0.0** (suíte+ruff+varredura+checklist) | — | ⏳ após P0.1 |
 

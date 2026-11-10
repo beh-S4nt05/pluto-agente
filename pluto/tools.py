@@ -1343,6 +1343,25 @@ def git_run(args: dict, cfg) -> str:
                 "(push/pull ficam via run_command, se o operador quiser).")
     if acao == "config" and re.search(r"--global|--system", extra):
         return "BLOQUEADO: config --global/--system altera a máquina do operador — só config local do repositório."
+    # V9.0.0 (P8.1 · auditoria SDD A2): chaves de config que EXECUTAM
+    # comandos no host (PoC reproduzido: core.fsmonitor 'touch /tmp/x'
+    # + git status executou o comando) — bloqueadas NA TOOL, valendo
+    # com ou sem bwrap (mac/win não têm a jaula).
+    if acao == "config":
+        _EXEC_KEYS = ("core.fsmonitor", "core.sshcommand", "core.hookspath",
+                      "core.pager", "core.editor", "core.sequenceeditor",
+                      "core.attributesfile", "alias.")
+        low = extra.lower()
+        achou = [k for k in _EXEC_KEYS if k in low]
+        if achou:
+            return ("BLOQUEADO: git config com chave que executa comandos "
+                    f"no host ({', '.join(achou)}) — auditoria SDD A2. Use "
+                    "config inofensiva (user.email, user.name, …).")
+    # P8.1 (A2): --output direciona a saída p/ ARQUIVO — escapa do
+    # workspace controlado (PoC: diff --output=/tmp/x escreveu fora).
+    if re.search(r"(^|\s)--output[=\s]", f"{acao} {extra}".strip()):
+        return ("BLOQUEADO: --output grava em arquivo fora do workspace "
+                "controlado — auditoria SDD A2. Deixe a saída no stdout.")
     cmd = ["git", acao] + shlex.split(extra)
     cwd = scope_dir() or cfg.workdir
     # V9.0.0 (P6): o git do agente também roda na JAULA do kernel —

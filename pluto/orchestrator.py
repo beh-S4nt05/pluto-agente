@@ -845,10 +845,15 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
     """
     _ev_base = on_event or (lambda _e: None)
     _n_tools = [0]              # v4.0.0 (M6.5): p/ loop de aprendizado
+    _tool_outs: list[str] = []  # V9.0.0 (P8.1): dados REAIS das tools
+                                # p/ o estágio [6] — 2ª passada da entrega
 
     def ev(e):                  # conta tool_start + repassa ao caller
         if e.get("type") == "tool_start":
             _n_tools[0] += 1
+        if e.get("type") == "tool_end":       # P8.1: evidência colhida
+            _tool_outs.append(
+                f"[{e.get('name')}] {str(e.get('output') or '')[:600]}")
         _ev_base(e)
 
     from . import activity
@@ -1399,6 +1404,18 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
             return _ciclo_etapas(etapas_n2, msgs, max_t)
         return _ciclo(msgs, max_t)
 
+    # ── V9.0.0 (P8.1 · T254): ESTÁGIO 4 IMPOSTO — checkpoint da task ──
+    # Auditoria SDD A1: "registrar não pode depender do modelo escolher
+    # a tool tarefa_checkpoint". O id é AMARRADO à task (task-<tid>):
+    # retomada da mesma task faz MERGE no mesmo checkpoint; task
+    # cancelada fica ATIVA de propósito (retomável depois).
+    try:
+        from . import contexto as _ctx
+        _ctx.salvar(cfg, task_id=f"task-{tid}", objetivo=objetivo,
+                    nota=f"task {tid} iniciada ({tipo})")
+    except Exception:  # noqa: BLE001
+        pass
+
     mensagens = history[-6:] + [{"role": "user",
                                  "content": f"{message}\n\n{_plano_txt()}"}]
     if projeto is not None:
@@ -1510,6 +1527,37 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
     dur = round(time.time() - t0, 1)
     status = ("aprovada" if veredito == "ok" and not _cancelado() else
               "reprovada" if not _cancelado() else "cancelada")
+
+    # ── V9.0.0 (P8.1 · T254): ESTÁGIOS 6 e 7 IMPOSTOS no pipeline ──
+    # A auditoria de conformidade SDD (achado A1) provou que "verificar
+    # e autoavaliar são arquitetura, não opção" existia só na SPEC: no
+    # código dependia do modelo ESCOLHER as tools entre 37. Agora o
+    # pipeline anexa à ENTREGA DE TASK (conversa segue leve na fast
+    # lane): [6] 2ª passada ✓/✗/~ da entrega contra os dados REAIS das
+    # tools + confiança; [7] quadro contra o pedido original. Falha
+    # aqui NUNCA derruba a entrega (aviso honesto no log).
+    try:
+        from .autoavaliacao import avaliar as _avaliar, formatar_quadro
+        from .verificacao import verificar as _verificar
+        _dados = "\n".join(_tool_outs)[-6000:]
+        _quadro = formatar_quadro(_avaliar(cfg, message, final, _dados))
+        _ver = _verificar(cfg, final, _dados)
+        if _ver.get("afirmacoes"):
+            final += "\n\n" + _ver["rodape"]
+        if _quadro:
+            final += "\n\n" + _quadro
+    except Exception as _exc:  # noqa: BLE001
+        try:
+            activity.log(cfg, "agente", f"⚠ estágios 6/7 falharam: {_exc}")
+        except Exception:  # noqa: BLE001
+            pass
+    try:                      # P8.1: [4] fecha o checkpoint da task
+        from . import contexto as _ctx
+        _ctx.fechar(cfg, f"task-{tid}",
+                    resultado=f"{tid} {status} · {objetivo[:120]}")
+    except Exception:  # noqa: BLE001
+        pass
+
     if resultado_meta is not None:      # v3.16.0: missão lê o veredito
         resultado_meta.update({"veredito": veredito, "problema": problema,
                                "tentativas": execucoes, "status": status,
