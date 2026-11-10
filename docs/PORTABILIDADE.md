@@ -93,3 +93,11 @@ T98 · T166 · T174 · T188.
 
 *docs/PORTABILIDADE.md · V9.0.0 P0 · fonte: run 42340204729 (logs dos
 jobs windows-latest/macos-latest, 07/11/2026). Atualizar a cada porta.*
+
+
+## Python (P8.3 — auditoria M11)
+
+- `pyproject.toml` declara `>=3.9` (análise estática).
+- O CI cobre **3.13** nos 3 SOs e **3.11** no Linux (matriz da P8.3).
+- 3.9/3.10: declarados como análise estática — sem CI. Se uma
+  dessas quebrar, o fix vem com regressão na suíte.

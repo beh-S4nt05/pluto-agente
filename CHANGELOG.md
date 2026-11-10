@@ -1,5 +1,52 @@
 # Changelog
 
+## v9.0.0-dev — 🤵 O SECRETÁRIO (em desenvolvimento — tag após P0.1)
+
+A versão do "agente que cuida de você": CI/CD de verdade, cérebro
+escalável (Princípio 0), anti-alucinação com verificação e autoavaliação
+IMPOSTAS no pipeline, contexto durável, secretário proativo, sandbox
+provado no CI, honestidade radical no cerne e projetos como nodes.
+Norteadada pelo ROADMAP-V9 e pela **auditoria externa de conformidade
+SDD** (validada claim a claim em docs/VALIDACAO-AUDITORIA-SDD.md —
+3 achados Alta e 9 Média corrigidos).
+
+- **P0 (T242)**: CI nos 3 SOs (ruff → suíte → varredura) + release.yml.
+- **P7 (T249)**: `capacidades.py` — portões de capacidade por perfil do
+  cérebro ATIVO; skills graduadas por nível; trocar cérebro no config
+  muda o comportamento SEM código. P8.3: heurística de perfil por
+  FRONTEIRA (mini/haiku/flash nunca são "forte") e a função morta
+  `solicitar_escalada` removida (escalada com aval segue backlog).
+- **P3 (T246)**: autoavaliação contra o pedido (quadro ✅/⚠️/✖ auditável).
+- **P1 (T243–T244)**: contexto durável — checkpoint por tarefa + diário
+  + alerta de truncamento; `retomar()` sem reler o chat.
+- **P2 (T245)**: 2ª passada anti-alucinação (✓/✗/~ + confiança;
+  destrutiva + baixa confiança → perguntar_operador).
+- **P4 (T247–T248)**: secretário proativo — briefing diário no Telegram,
+  lembretes, triagem de e-mail (tudo opt-in).
+- **P5 (T250)**: 5 skills V9 do pedido (pedido-fiel, escrever-pedido,
+  pedido-para-plano, interrogar, autoavaliar-entrega).
+- **P6 (T251)**: sandbox provado DE VERDADE no CI Linux (bwrap +
+  sysctl AppArmor + marcador no log); `git_run` enjaulado com net=False.
+- **Diretriz de honestidade (T252)**: "sucesso só com prova; 'não
+  verificado' é resposta válida" no SYSTEM_PROMPT + orçamento do prompt
+  visível no log de cada CI.
+- **P8 (T253)**: PROJETOS COMO NODES — cada projeto é um GRUPO DE
+  CONVERSAS com contexto e artefatos próprios (`projetos/<slug>/`);
+  tool `projeto` (37ª) + CLI `pluto projeto` + `/api/chat` com projeto.
+- **P8.1 (T254–T256)**: auditoria Alta — estágios 4/6/7 IMPOSTOS no
+  `run_pipeline` (verificação + quadro anexados à entrega de task);
+  `git_run` com denylist na tool (config que executa comandos,
+  `--output`); DLP no secretário (e-mail corporativo também mascara).
+- **P8.2 (T257–T260)**: auditoria Média — segredos do data-dir ATIVO
+  bloqueados; `~/.ssh`/`~/.aws`/`~/.gnupg` nunca são escopo; `✖` é
+  falha; `pluto/atomic.py` (escrita atômica única, concorrência-safe
+  no Windows) + secretário sem loop; `pluto gates --instalar-hook`
+  (varredura bloqueia o push ANTES de sair).
+- **P8.3 (T261)**: alinhamento spec/docs — versão 9.0.0-dev, waitress
+  no requirements, matriz Python 3.11+3.13 no CI, CHANGELOG/README em
+  dia, diretrizes/roadmap/mapa versionados no repo (docs/), SPEC com
+  RFs dos módulos operacionais e modelo de dados completo.
+
 ## v8.6.0 — 🧩 MCP: PARIDADE GENKIT (SSE + RECURSOS + PROMPTS)
 
 Pedido do operador: "clona o Genkit MCP — só quero que ele tenha, caso

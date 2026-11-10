@@ -11,7 +11,7 @@
 > verificado" é estado válido, sucesso fingido não).
 >
 > Operador: **Breno** · Repo: `beh-S4nt05/pluto-agente` (main) ·
-> Suíte: **260 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
+> Suíte: **261 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
 > (ubuntu · macos · windows) — último verde: ver §8.
 
 ---
@@ -26,8 +26,9 @@ escalar para provedores externos gratuitos **sem que código, segredos ou
 dados pessoais saiam da máquina** (D2).
 
 - **Cadeia de nomes** (mesmo produto): `hermes` (v1–v3) → `betterme`
-  (v4.1.0) → **`pluto`** (v8.3.0 — nome final). O workspace/pacote
-  histórico `hermes-agent` persiste por compatibilidade.
+  (v4.1.0) → **`pluto`** (v8.3.0 — nome final). O REPOSITÓRIO de
+  desenvolvimento mantém o nome `hermes-agent`; o pacote instalável é
+  `pluto` (nome antigo só em comentários de compatibilidade do `update.py`).
 - **Zero dependência pesada**: Python stdlib onde dá; o que é externo
   (Ollama, whisper.cpp, n8n, Playwright) é opcional e degrada com
   honestidade.
@@ -74,16 +75,17 @@ operador, 07/11/2026):
 2. **Relatório/revisão = caçar problemas** (achados acionáveis).
 3. **"Explique" = ensinar** (só quando pedido).
 4. **README sempre em dia** em toda release (nunca versões atrás).
-5. *(reservada)*
-6. **Antes de perguntar ou duvidar: CONSULTE primeiro** — (1º) contextos
+5. **Antes de perguntar ou duvidar: CONSULTE primeiro** — (1º) contextos
    e bases da conversa; (2º) processo em trabalho; (3º) só então
    perguntar.
-7. **Honestidade radical — sucesso só com prova** (09/11/2026, após o
+6. **Honestidade radical — sucesso só com prova** (09/11/2026, após o
    P6): obrigatória para **qualquer ser humano** com quem se trabalhe.
    Nunca apresentar como feito/provado o que não foi provado DE VERDADE;
    "verde" não substitui verificação; o caminho que rodou fica VISÍVEL;
    "não verificado" é declarado. **Gravada no cerne do agente**
-   (SYSTEM_PROMPT) e garantida pelo T252 no CI dos 3 SOs.
+   (SYSTEM_PROMPT) e garantida pelo T252 no CI dos 3 SOs. (Numeração
+   corrigida em 10/11/2026 — era "Diretriz 7"; fonte versionada em
+   `docs/DIRETRIZES.md`.)
 
 ### 2.4 Regras que não mudam (roadmap §6)
 
@@ -96,7 +98,7 @@ criar · validar de verdade.
 
 | Política | Valor |
 |---|---|
-| SOs suportados | Linux · macOS · Windows (x86-64 e ARM64) |
+| SOs suportados | Linux · macOS · Windows (x86-64 e ARM64); Python ≥3.9 (análise estática), CI cobre 3.11 e 3.13 (P8.3) |
 | Suíte de regressão | 253 casos (`tests/run_all.py`), auto-descoberta `@case` |
 | Gates de CI | ruff (`E9,F,B,PLE`) → suíte → varredura de segredos |
 | Performance | resposta >50 s inaceitável (orçamentos em POLITICAS.md) |
@@ -195,8 +197,12 @@ A1 da auditoria SDD: antes a regra vivia só nesta spec.)
 - **RF-CER-05** Capacidades (P7·T249): `PORTOES` + `NIVEIS_SKILL` +
   `capacidades_perfil` — o perfil do cérebro ativo define portões
   abertos e skills visíveis; trocar cérebro = trocar perfil SEM código.
-  *Portões futuros (desligados até o perfil suportar):*
-  `computer_use` (fundação: jaula provada no CI — P6).
+  *Portões RESERVADOS (computados, ainda sem consumidor — declarado
+  honestamente):* `ctx_longo` · `autonomia_estendida` · `computer_use`
+  (fundação pronta: jaula provada no CI — P6). Auto-escalonamento com
+  aval do operador: **backlog** — a função morta `solicitar_escalada`
+  foi removida na P8.3 (auditoria M9); trocar de cérebro hoje é manual
+  (`pluto provider set` / config), nunca silencioso.
 - **Verificação**: T249 (2 perfis) · T127 (modelo do provedor).
 
 ### 5.2 Ferramentas e execução
@@ -304,9 +310,13 @@ projetos/rpg/
 
 ### 5.5 Skills (55)
 
-- **RF-SKL-01** Formato SKILL.md PT-BR <8192 bytes com `## Exemplo`,
-  gatilhos com flexões, nível (leve/rapido/…); importação de pasta,
-  zip, git, owner/repo; scan de pastas assistidas; auditoria.
+- **RF-SKL-01** Formato SKILL.md PT-BR <8192 bytes, gatilhos com
+  flexões, importação de pasta, zip, git, owner/repo; scan de pastas
+  assistidas; auditoria. **Escopo do `## Exemplo` e do `nivel`
+  (P8.3, auditoria M8): OBRIGATÓRIOS nas skills V9 (P5 — 6/6 têm);
+  RECOMENDADOS nas legadas — a auditoria reporta a contagem sem
+  reprovar; `nivel` é opt-in (padrão leve = visível em todos os
+  perfis; a graduação existe e as skills V9 a exercitam).
 - **RF-SKL-02** Graduação (P7): skill avançada não entra no prompt de
   cérebro leve — continua instalada/inventariada, só não é sugerida.
 - **RF-SKL-03** Skills V9 do pedido (P5·T250): **pedido-fiel** (eco
@@ -408,6 +418,27 @@ projetos/rpg/
 
 ---
 
+### 5.12 Módulos operacionais (RFs resumidas — auditoria §3)
+
+| Módulo | Responsabilidade (RF) |
+|--------|----------------------|
+| `specialists.py` | ADR-001: especialistas-como-ferramentas — veredito JSON com evidência VALIDADA em disco, pool grátis com fallback, DLP, exames de competência |
+| `autonomy.py` | 3 níveis (cauteloso/padrao/autonomo) + hard gates inejociáveis + varredura pré-entrega do AUTÔNOMO |
+| `mission.py` | Modo missão: 1 objetivo → subtasks encadeadas (reusa run_pipeline — herda estágios 4/6/7) |
+| `dossie.py` | Dossiê de task por artefatos (evidências de eventos, revisão) |
+| `mencoes.py` | @menções com D2 (v7.2.1: texto indentado não é código) |
+| `procs.py` | Processos em background (start/logs/stop) |
+| `recipes.py` | Receitas prontas de uma linha |
+| `code_manager.py` | Gerente de código Claude — opt-in consciente (D5) |
+| `activity.py` | Log de atividades (o quê/quando) |
+| `extrair.py` | Extrator ÚNICO de JSON de resposta de modelo (DRY) |
+| `agendacfg.py` | Contas Google Calendar + eventos estruturados |
+| `skills_audit.py` | Auditoria do catálogo (injeção, estrutura, duplicatas, `## Exemplo` informativo) |
+
+Funcionalidades COM RF indireta (fluxo/canais): n8n local (§5.8 GUI) ·
+vault Obsidian (§5.3 camada 7) · cache de certeza (§5.6 método) · modo
+prazo e /comandos (orchestrator §4).
+
 ## 6. Modelo de dados (`<data_dir>/`)
 
 ```
@@ -427,6 +458,14 @@ models/                         whisper.cpp (multimodal local)
 secrets (chmod 600)             tokens/chaves — NUNCA no repo
 varredura-nomes.txt             nomes pessoais (privado, DLP)
 HERMES.md                       instruções globais do operador
+secretario.json                 estado do secretário (briefing/lembretes)
+lembretes.json                  chaves de lembretes já avisados
+notifications.json              central de notificações da GUI
+orchestrator_tasks.jsonl        registro das tasks do orquestrador
+pending_approvals.json          aprovações pendentes (gates de segurança)
+session_goals.json              objetivos por sessão
+schedules/                      agendamentos do scheduler
+dossies/                        dossiês de task (evidências)
 ```
 
 Tudo **local-first**: nada sai da máquina sem passar por D2/DLP.
@@ -479,6 +518,7 @@ testes + CI verde nos 3 SOs + docs + relatório."
 | P8 | Projetos como nodes (grupo de conversas) | T253 | ✅ 09/11 · CI 42578961078 verde 3 SOs · 253/253 |
 | P8.1 | Correção dos 3 bloqueadores da auditoria SDD (estágios 4/6/7 impostos no pipeline · git_run endurecido · DLP no secretário) | T254–T256 | ✅ 10/11 |
 | P8.2 | Segurança/robustez da auditoria: M4 (segredos por data-dir + escopo sensível) · M7 (`✖` = falha) · M6 (helper atômico único + secretário sem loop) · M5 (hook pré-push) | T257–T260 | ✅ 10/11 |
+| P8.3 | Alinhamento spec/docs: M8 (skills) · M9 (portões reservados + heurística por fronteira + escalada morta removida) · M11 (versão 9.0.0-dev, CHANGELOG/README, waitress, matriz py) · M12 (diretrizes/roadmap/mapa no repo) · §3/§6 (RFs dos módulos + modelo de dados) | T261 | ✅ 10/11 |
 | P0.1 | Queimar dívida win/mac (43 testes) + T107 | — | ⏳ pendente |
 | — | **Release v9.0.0** (suíte+ruff+varredura+checklist) | — | ⏳ após P0.1 |
 
@@ -546,10 +586,11 @@ degrada para kernel.
 2. Toda seção carrega status de verificação (teste/CI) — sem prova, é
    "não verificado".
 3. Novas fases entram na tabela do §8 com teste e data.
-4. Esta spec NÃO substitui: `POLITICAS.md` (lei), `DIRETRIZES.md`
-   (modo de trabalho), `ROADMAP-V9-SECRETARIO.md` (plano),
-   `MAPA-FLUXOS-V9.md` (fluxos), `docs/PORTABILIDADE.md` (dívida),
-   `CHANGELOG.md` (histórico) — ela os **referencia como fontes**.
+4. Esta spec NÃO substitui: `POLITICAS.md` (lei), `docs/DIRETRIZES.md`
+   (modo de trabalho), `docs/ROADMAP-V9-SECRETARIO.md` (plano),
+   `docs/MAPA-FLUXOS-V9.md` (fluxos), `docs/PORTABILIDADE.md` (dívida),
+   `CHANGELOG.md` (histórico) — ela os **referencia como fontes**
+   (todos versionados no repo desde a P8.3 — auditoria M12).
 
 *SPEC.md · Pluto Agente · v9.0.0-dev · 09/11/2026 · mantida junto com
 o código que especifica.*

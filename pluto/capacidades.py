@@ -41,8 +41,11 @@ _NIVEL = {"leve": 1, "rapido": 2, "forte": 3}
 
 # heurísticas de nomes (honestas, não mágicas): o nome do modelo é o
 # que o config/REGISTRY declara — padrões conhecidos, default honesto
-_FORTE = ("pro", "max", "gpt-5", "gpt-4", "o3", "o4", "claude", "70b",
-          "90b", "120b", "235b", "405b", "deepseek", "-r1")
+# P8.3 (auditoria M9): padrões casados por FRONTEIRA (não substring —
+# "improved-chat"/"promptist-7b" NÃO são fortes por terem "pro"/"7b")
+_FORTE = ("pro", "max", "opus", "sonnet", "gpt-5", "gpt-4o", "gpt-4",
+          "o3", "o4", "claude", "70b", "90b", "120b", "235b", "405b",
+          "deepseek", "r1")
 _RAPIDO = ("flash", "instant", "mini", "small", "haiku", "turbo",
            "nano", ":free", "8b", "7b", "9b", "3b", "1b")
 _RE_PARAMS = re.compile(r"(\d+(?:\.\d+)?)\s*b\b", re.I)
@@ -104,14 +107,27 @@ def _perfil_local(modelo: str) -> str:
     return "leve"
 
 
+def _padrao_bate(padroes: tuple, nome: str) -> bool:
+    """P8.3 (auditoria M9): casamento por FRONTEIRA — o padrão precisa
+    começar e terminar em não-alfanumérico (hífen/ponto/início/fim).
+    'pro' NÃO casa dentro de 'improved'; 'mini' casa em 'gpt-4o-mini'."""
+    for p in padroes:
+        if re.search(rf"(?<![a-z0-9]){re.escape(p)}(?![a-z0-9])", nome):
+            return True
+    return False
+
+
 def _perfil_externo(modelo: str) -> str:
     """Provedor externo: padrões do nome; desconhecido → rapido
-    (meio honesto: externo é ao menos rápido e verificável)."""
+    (meio honesto: externo é ao menos rápido e verificável).
+    P8.3: RÁPIDO é avaliado PRIMEIRO — mini/flash/haiku/small nunca
+    são fortes, nem com 'pro' no nome (gpt-4o-mini/o3-mini/
+    claude-haiku eram classificados 'forte' na auditoria)."""
     nome = (modelo or "").lower()
-    if any(p in nome for p in _FORTE):
-        return "forte"
-    if any(p in nome for p in _RAPIDO):
+    if _padrao_bate(_RAPIDO, nome):
         return "rapido"
+    if _padrao_bate(_FORTE, nome):
+        return "forte"
     return "rapido"
 
 
@@ -170,36 +186,3 @@ def capacidades(cfg) -> Capacidades:
         "autonomia_estendida": perfil == "forte",
     }
     return Capacidades(perfil, provedor, modelo, ctx, fonte, portoes)
-
-
-def solicitar_escalada(cfg, tarefa: str, motivo: str = "") -> dict:
-    """Pede AVAL do operador para escalar UMA tarefa a um cérebro forte.
-
-    NUNCA silenciosa: devolve o pedido pronto (a entrega no canal do
-    operador — Telegram — chega na P4) e NÃO muda cérebro nenhum.
-    A tarefa não vaza no log de auditoria (só o tamanho, padrão D2).
-    """
-    cap = capacidades(cfg)
-    if cap.perfil == "forte":
-        return {"ok": False,
-                "msg": "cérebro ativo já é forte — nada a escalar"}
-    pedido = {
-        "ok": True,
-        "tipo": "escalada",
-        "de": cap.perfil,
-        "para": "forte",
-        "tarefa_chars": len(tarefa or ""),
-        "motivo": (motivo or "").strip()[:200],
-        "aprovado": None,        # só o OPERADOR decide
-        "msg": (f"🔁 ESCALADA SOLICITADA — tarefa crítica com cérebro "
-                f"{cap.perfil} ativo ({cap.provedor}/{cap.modelo or '?'}). "
-                "Aprovar exige o aval do operador; nada muda sozinho."),
-    }
-    try:
-        from . import activity
-        activity.log(cfg, "escalada",
-                     f"🔁 solicitada ({cap.perfil}→forte) · tarefa "
-                     f"{pedido['tarefa_chars']} chars · aval do operador")
-    except Exception:  # noqa: BLE001
-        pass
-    return pedido

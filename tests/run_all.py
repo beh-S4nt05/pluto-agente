@@ -1861,7 +1861,9 @@ def T81_update_end_to_end_v3110_local():
     from pluto.config import VERSION as _V
 
     # fixture SEMPRE à frente da versão instalada (senão quebra a cada release)
-    _p = [int(x) for x in _V.split(".")]
+    # P8.3: VERSION pode ter sufixo dev ("9.0.0-dev") — só a parte
+    # numérica entra no cálculo (o update._parse_version também ignora)
+    _p = [int(x) for x in _V.split("-")[0].split(".")]
     nova = f"v{_p[0]}.{_p[1] + 1}.0"
     tmp = Path(tempfile.mkdtemp(prefix="pluto-upd-"))
     src = tmp / f"{up.REPO.split('/')[-1]}-{nova}"
@@ -10731,8 +10733,7 @@ def T249_capacidades_perfis_e_portoes():
     trocar o cérebro no CONFIG muda o comportamento sem mexer em código
     (prova do DoD item 7); skills graduadas por nível; escalada só com
     aval do operador."""
-    from pluto.capacidades import (PORTOES, capacidades,
-                                   solicitar_escalada)
+    from pluto.capacidades import PORTOES, capacidades
     from pluto.skills import SkillLoader
 
     # 1) piso de hoje: Ollama local 8b → leve, portões fechados
@@ -10827,15 +10828,6 @@ def T249_capacidades_perfis_e_portoes():
     assert "perfil" in out and "portões" in out, out
     assert "verificacao_completa" in out and "leve" in out, out
 
-    # 9) escalada NUNCA silenciosa: pede aval, não muda cérebro
-    cfg = fresh()
-    antes = capacidades(cfg).perfil
-    pedido = solicitar_escalada(cfg, "tarefa crítica qualquer", "urgente")
-    assert pedido["ok"] and pedido["de"] == "leve" and pedido["para"] == "forte"
-    assert pedido["aprovado"] is None and "operador" in pedido["msg"].lower()
-    assert capacidades(cfg).perfil == antes          # nada mudou sozinho
-    neg = solicitar_escalada(fresh(capacidades_perfil="forte"), "x")
-    assert not neg["ok"]                              # já forte: não pede
 
 
 @case
@@ -12168,6 +12160,69 @@ def T260_hook_pre_push():
     finally:
         os.chdir(cwd_antigo)
         shutil.rmtree(repo, ignore_errors=True)
+
+
+@case
+def T261_docs_e_perfis_da_auditoria():
+    """V9.0.0 P8.3 (T261): alinhamento spec/docs da auditoria SDD —
+    M9: heurística de perfil casa por FRONTEIRA (mini/haiku/flash
+    nunca são 'forte'; 'improved-chat'/'promptist-7b' não pegam 'pro'
+    por substring) e a função morta solicitar_escalada foi REMOVIDA
+    (auto-escalonamento com aval = backlog declarado). M11: versão
+    9.0.0-dev coerente (config+pyproject), waitress no requirements,
+    CHANGELOG com a entrada v9, README em dia. M12: diretrizes/
+    roadmap/mapa versionados NO REPO com numeração corrigida. M8:
+    skills_audit reporta '## Exemplo' (informativo, sem reprovar)."""
+    from pluto.capacidades import _perfil_externo
+    from pluto.config import VERSION
+
+    # ── M9: fronteira + rapido-first
+    for m in ("gpt-4o-mini", "o3-mini", "claude-haiku", "gemini-2.0-flash",
+              "improved-chat", "promptist-7b", "llama-3.1-8b-instant"):
+        assert _perfil_externo(m) == "rapido", m
+    for m in ("gemini-2.5-pro", "gpt-4o", "gpt-5", "o3", "deepseek-r1",
+              "claude-3.7-sonnet", "llama3.3:70b"):
+        assert _perfil_externo(m) == "forte", m
+    from pluto import capacidades as CAP
+    assert not hasattr(CAP, "solicitar_escalada"), \
+        "função morta voltou (auditoria M9: ligar ou remover)"
+
+    # ── M11: versão e dependências coerentes
+    assert VERSION == "9.0.0-dev", VERSION
+    pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+    assert 'version = "9.0.0.dev0"' in pyproject
+    assert "waitress" in Path("requirements.txt").read_text(encoding="utf-8")
+    changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## v9.0.0-dev" in changelog[:400], "entrada v9 não está no topo"
+    readme = Path("README.md").read_text(encoding="utf-8")
+    assert "v9.0.0-dev" in readme and "261 testes" in readme
+
+    # ── M12: governança versionada no repo + numeração sem duplicata
+    diretrizes = Path("docs/DIRETRIZES.md").read_text(encoding="utf-8")
+    assert "4. **README sempre em dia" in diretrizes
+    assert "5. **Antes de perguntar" in diretrizes
+    assert diretrizes.count("\n6. **") == 1, "duplicata do 6 voltou"
+    assert "6. **Honestidade radical" in diretrizes
+    assert "Diretriz 7" in diretrizes          # nota de alias histórico
+    assert Path("docs/ROADMAP-V9-SECRETARIO.md").is_file()
+    assert Path("docs/MAPA-FLUXOS-V9.md").is_file()
+
+    # ── M8: skills_audit com '## Exemplo' informativo
+    from pluto.skills_audit import audit_skill
+    d = Path(tempfile.mkdtemp(prefix="pluto-t261-")) / "skill-x"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        "---\nname: skill-x\ndescription: Descrição longa o bastante "
+        "para gatilhos claros e casamento correto.\n---\ncorpo\n",
+        encoding="utf-8")
+    rel = audit_skill(d)
+    assert rel["nivel"] == "ok" and rel["exemplo"] is False
+    assert not any("Exemplo" in p for p in rel["problemas"])
+    (d / "SKILL.md").write_text(
+        "---\nname: skill-x\ndescription: Descrição longa o bastante "
+        "para gatilhos claros e casamento correto.\n---\ncorpo\n\n"
+        "## Exemplo\n- faz assim\n", encoding="utf-8")
+    assert audit_skill(d)["exemplo"] is True
 
 
 if __name__ == "__main__":

@@ -88,6 +88,9 @@ def audit_skill(pasta: Path) -> dict:
     tam = len(texto.encode("utf-8"))
     if tam > MAX_BYTES:
         rel["problemas"].append(f"SKILL.md grande ({tam} B > {MAX_BYTES} B)")
+    # P8.3 (auditoria M8): `## Exemplo` é INFORMATIVO aqui — obrigatório
+    # nas skills V9 (P5), recomendado nas legadas; ausência NÃO é problema
+    rel["exemplo"] = "## Exemplo" in _corpo
     for padrao, msg in _INJECTION:
         for m in re.finditer(padrao, texto, re.IGNORECASE):
             if _NEGACAO.search(texto[:m.start()]):
@@ -143,7 +146,9 @@ def run_audit(cfg, print_fn=print) -> int:
             print_fn(f"      {prob}")
         erros += r["nivel"] == "erro"
         avisos += r["nivel"] == "aviso"
-    print_fn(f"\n{len(rels)} skills · {erros} erro(s) · {avisos} aviso(s)")
+    com_ex = sum(1 for r in rels if r.get("exemplo"))
+    print_fn(f"\n{len(rels)} skills · {erros} erro(s) · {avisos} aviso(s) · "
+             f"{com_ex}/{len(rels)} com '## Exemplo' (obrigatório nas V9)")
     if erros:
         print_fn("✖ catálogo COM problemas — corrija antes de confiar.")
         return 1

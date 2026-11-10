@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 APP_NAME = "pluto-agent"
-VERSION = "8.6.0"
+VERSION = "9.0.0-dev"     # P8.3: dev até a tag v9.0.0 (suíte+ruff+varredura+checklist no mesmo ciclo)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULTS = {

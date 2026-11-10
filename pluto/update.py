@@ -12,6 +12,7 @@ versão instalada → baixa o zip da tag → aplica sobre a instalação atual
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import tempfile
 import urllib.request
@@ -32,11 +33,32 @@ _PULA_ARQUIVOS = {".gitignore"}
 
 
 def _parse_version(tag: str) -> tuple[int, ...]:
-    """'v3.10.0' → (3,10,0); tags com sufixo (-beta, -rc) ficam (0,)."""
-    parts = str(tag).lstrip("v").strip().split(".")
-    if len(parts) != 3 or not all(x.isdigit() for x in parts):
+    """'v3.10.0' → (3,10,0); tags malformadas ficam (0,).
+
+    P8.3: sufixos (-dev/-rc/-beta) são DESCARTADOS por parte —
+    '9.0.0-dev' → (9,0,0). Antes virava (0,) e quebrava a recusa de
+    downgrade (qualquer tag antiga parecia 'mais nova' que um dev
+    instalado — pego pelo T81 ao versionar 9.0.0-dev)."""
+    parts: list[int] = []
+    for x in str(tag).lstrip("v").strip().split("."):
+        x = x.split("-")[0].split("+")[0]      # '0-dev' → '0'
+        if not x.isdigit():
+            return (0,)
+        parts.append(int(x))
+    if len(parts) != 3:
         return (0,)
-    return tuple(int(x) for x in parts)
+    return tuple(parts)
+
+
+def _estavel(tag: str) -> bool:
+    """Tag ESTÁVEL: estritamente vX.Y.Z, SEM sufixo (-beta/-rc/-dev).
+
+    P8.3: antes o filtro de estabilidade era implícito (sufixo fazia
+    _parse_version devolver (0,)); com o parser dev-aware isso precisou
+    virar regra EXPLÍCITA aqui — o update só oferece versão estável,
+    mas compara a INSTALADA (que pode ser 9.0.0-dev) pela base
+    numérica."""
+    return re.fullmatch(r"v?\d+\.\d+\.\d+", str(tag).strip()) is not None
 
 
 def latest_tag(fetch=None) -> str | None:
@@ -46,7 +68,7 @@ def latest_tag(fetch=None) -> str | None:
                        .read().decode())
     try:
         tags = [t.get("name", "") for t in json.loads(getter(TAGS_API))]
-        validas = [t for t in tags if _parse_version(t)]
+        validas = [t for t in tags if _estavel(t)]
         return max(validas, key=_parse_version) if validas else None
     except Exception:  # noqa: BLE001
         return None
