@@ -30,8 +30,10 @@ def push(cfg, kind: str, title: str, body: str = "") -> None:
                 "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "read": False,
             })
-            path.write_text(json.dumps(data[:MAX_ITEMS], ensure_ascii=False,
-                                       indent=1), encoding="utf-8")
+            # P8.2 (T259, auditoria M6): notifications.json atômico
+            from .atomic import atomic_write
+            atomic_write(path, json.dumps(data[:MAX_ITEMS],
+                                          ensure_ascii=False, indent=1))
     except Exception:  # noqa: BLE001
         pass
 
@@ -56,7 +58,9 @@ def mark_all_read(cfg) -> None:
             data = json.loads(path.read_text(encoding="utf-8"))
             for n in data:
                 n["read"] = True
-            path.write_text(json.dumps(data, ensure_ascii=False, indent=1),
-                            encoding="utf-8")
+            # P8.2 (T259, auditoria M6): atômico
+            from .atomic import atomic_write
+            atomic_write(path, json.dumps(data, ensure_ascii=False,
+                                          indent=1))
         except (OSError, ValueError):
             pass

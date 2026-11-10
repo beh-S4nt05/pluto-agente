@@ -11,7 +11,7 @@
 > verificado" é estado válido, sucesso fingido não).
 >
 > Operador: **Breno** · Repo: `beh-S4nt05/pluto-agente` (main) ·
-> Suíte: **256 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
+> Suíte: **260 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
 > (ubuntu · macos · windows) — último verde: ver §8.
 
 ---
@@ -102,7 +102,7 @@ criar · validar de verdade.
 | Performance | resposta >50 s inaceitável (orçamentos em POLITICAS.md) |
 | Orçamento do system prompt | **<6000 chars** (T12; T252 imprime `N/6000` no log do CI) |
 | Pré-tag | suíte + ruff + varredura + `CHECKLIST-PRE-RELEASE.md` |
-| Pré-push | varredura de segredos (CRÍTICO bloqueia) |
+| Pré-push | varredura de segredos (CRÍTICO bloqueia) — via hook git: `pluto gates --instalar-hook` (P8.2) |
 | Ensino | CBTA (IS 141-007), teor ≥75% (v7.7.0) |
 | Segredos | arquivos chmod 600 no data-dir; **token GitHub nunca no repo** |
 | Commits | granulares, mensagem = raciocínio + lição (por que, não só o quê) |
@@ -436,12 +436,19 @@ Tudo **local-first**: nada sai da máquina sem passar por D2/DLP.
 ## 7. Requisitos não-funcionais
 
 - **NFR-01 Privacidade**: D2/DLP em TODO caminho externo; memória e
-  dados pessoais nunca saem; varredura pré-push (CRÍTICO bloqueia).
+  dados pessoais nunca saem; varredura pré-push (CRÍTICO bloqueia;
+  hook `pluto gates --instalar-hook`). **P8.2 (T257)**: segredos
+  bloqueados no data-dir ATIVO (não só no `~/.pluto` fixo) e
+  `~/.ssh`/`~/.aws`/`~/.gnupg` nunca são escopo de projeto.
 - **NFR-02 Performance**: >50 s inaceitável; cache de planos, cache de
   prompt (prefixo estável), keep_alive, fluxo leve 3 níveis (v6.6.0).
-- **NFR-03 Robustez**: escrita atômica (tmp+replace) em tudo que
-  persiste; crash no meio não corrompe; degradação honesta em toda
-  dependência opcional; nunca-mudo (final vazio → erro explícito).
+- **NFR-03 Robustez**: escrita atômica em tudo que persiste —
+  **helper único `pluto/atomic.py`** (P8.2·T259: tmp único por
+  escrita, seguro sob concorrência) migrado em config.yaml,
+  current.json, notifications.json, secretario.json, lembretes.json;
+  falha de escrita é LOGADA (nunca silêncio) e o secretário mantém
+  espelho em memória (sem loop de 15 s); crash no meio não corrompe;
+  degradação honesta em toda dependência opcional; nunca-mudo.
 - **NFR-04 Portabilidade**: 3 SOs × x86-64/ARM64; Unix-ismos só em
   `plataforma.py`.
 - **NFR-05 Determinismo**: mesma entrada → mesma saída (ordenações
@@ -471,6 +478,7 @@ testes + CI verde nos 3 SOs + docs + relatório."
 | — | Diretriz 7 no cerne (honestidade radical) | T252 | ✅ 09/11 |
 | P8 | Projetos como nodes (grupo de conversas) | T253 | ✅ 09/11 · CI 42578961078 verde 3 SOs · 253/253 |
 | P8.1 | Correção dos 3 bloqueadores da auditoria SDD (estágios 4/6/7 impostos no pipeline · git_run endurecido · DLP no secretário) | T254–T256 | ✅ 10/11 |
+| P8.2 | Segurança/robustez da auditoria: M4 (segredos por data-dir + escopo sensível) · M7 (`✖` = falha) · M6 (helper atômico único + secretário sem loop) · M5 (hook pré-push) | T257–T260 | ✅ 10/11 |
 | P0.1 | Queimar dívida win/mac (43 testes) + T107 | — | ⏳ pendente |
 | — | **Release v9.0.0** (suíte+ruff+varredura+checklist) | — | ⏳ após P0.1 |
 

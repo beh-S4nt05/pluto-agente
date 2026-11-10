@@ -946,6 +946,15 @@ def validar_escopo_projeto(path, cfg=None) -> Path:
     for sysdir in _SCOPE_DENY:
         if p == Path(sysdir) or Path(sysdir) in p.parents:
             raise ToolError(f"escopo recusado: {sysdir} é diretório do sistema")
+    # P8.2 (T257, auditoria M4): pastas de CREDENCIAIS da home nunca
+    # são escopo de projeto — dentro de um escopo a checagem sensível
+    # era pulada (escrita confirmada na auditoria)
+    for sub in (".ssh", ".aws", ".gnupg"):
+        alvo = (Path.home() / sub).resolve()
+        if p == alvo or alvo in p.parents:
+            raise ToolError(
+                f"escopo recusado: ~/{sub} contém credenciais do "
+                "operador — aponte a pasta do projeto, não suas chaves")
     if cfg is not None:
         d = Path(cfg.data_dir).resolve()
         if p == d or d in p.parents:
@@ -1003,6 +1012,11 @@ def resolve_path(path: str, cfg, write: bool = False) -> Path:
             dentro_home = str(p) == home or str(p).startswith(home + os.sep)
             sensiveis = [str(Path(s).expanduser().resolve())
                          for s in _SENSITIVE_READ]
+            # P8.2 (T257, auditoria M4): os segredos vivem no data-dir
+            # ATIVO — com --data-dir/PLUTO_DATA_DIR customizado, o
+            # "~/.pluto" fixo não cobria (PoC da auditoria: read_file
+            # leu secrets/telegram.key). Bloqueia o secrets DO cfg.
+            sensiveis.append(str((Path(cfg.data_dir) / "secrets").resolve()))
             bloqueada = any(str(p) == s or str(p).startswith(s + os.sep)
                             for s in sensiveis)
             if bloqueada:
@@ -1906,7 +1920,9 @@ def execute_tool(name: str, arguments: dict, cfg, source: str = "agent",
     try:
         args = dict(arguments or {})
         output = EXECUTORS[name](args, cfg)
-        ok = not output.startswith(("ERRO", "BLOQUEADO"))
+        # P8.2 (T258, auditoria M7): "✖" também é falha — ≥7 tools
+        # retornavam erro honesto com ok=True na auditoria
+        ok = not output.startswith(("ERRO", "BLOQUEADO", "✖"))
         _audit.log(cfg, agent, name, args, ok, output,
                    duration_ms=int((_time.time() - t0) * 1000), source=source)
         _atividade(ok, output)

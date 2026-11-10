@@ -45,6 +45,13 @@ _PRECISA_DE_VOCE = (
 
 
 # ─────────────────────────────────────────────────── registro interno
+# P8.2 (T259, auditoria M6): espelho IN-MEMORY do estado do secretário —
+# se a escrita em disco falhar, o briefing NÃO re-dispara a cada 15 s
+# (a trava "1×/dia" também vive na memória do processo)
+_MEMO_BRIEFING: dict[str, str] = {}      # data_dir → data do último envio
+_MEMO_LEMBRETES: dict[str, set[str]] = {}  # data_dir → chaves já avisadas
+
+
 def _registro(cfg) -> dict:
     p = Path(cfg.data_dir) / "secretario.json"
     try:
@@ -55,29 +62,47 @@ def _registro(cfg) -> dict:
 
 def _salvar_registro(cfg, reg: dict) -> None:
     try:
-        p = Path(cfg.data_dir) / "secretario.json"
-        p.write_text(json.dumps(reg, ensure_ascii=False, indent=1),
-                     encoding="utf-8")
-    except OSError:
-        pass
+        from .atomic import atomic_write
+        atomic_write(Path(cfg.data_dir) / "secretario.json",
+                     json.dumps(reg, ensure_ascii=False, indent=1))
+    except OSError as exc:
+        # auditoria M6: falha engolida em silêncio faz o briefing
+        # repetir a cada 15 s — agora é LOGADA (honesto) e o memo
+        # in-memory segura a trava até o disco voltar
+        try:
+            from .activity import log
+            log(cfg, "secretario",
+                f"⚠ falha ao gravar secretario.json: {exc} "
+                "(seguindo com o estado em memória)")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _lembretes_dados(cfg) -> set[str]:
     try:
-        return set(json.loads(
+        dados = set(json.loads(
             (Path(cfg.data_dir) / "lembretes.json").read_text(
                 encoding="utf-8")))
     except Exception:  # noqa: BLE001
-        return set()
+        dados = set()
+    return dados | _MEMO_LEMBRETES.get(str(cfg.data_dir), set())
 
 
 def _marcar_lembrete(cfg, chaves: set[str]) -> None:
+    _MEMO_LEMBRETES[str(cfg.data_dir)] = (
+        _MEMO_LEMBRETES.get(str(cfg.data_dir), set()) | set(chaves))
     try:
-        p = Path(cfg.data_dir) / "lembretes.json"
-        p.write_text(json.dumps(sorted(chaves), ensure_ascii=False),
-                     encoding="utf-8")
-    except OSError:
-        pass
+        from .atomic import atomic_write
+        atomic_write(Path(cfg.data_dir) / "lembretes.json",
+                     json.dumps(sorted(chaves), ensure_ascii=False))
+    except OSError as exc:
+        try:
+            from .activity import log
+            log(cfg, "secretario",
+                f"⚠ falha ao gravar lembretes.json: {exc} "
+                "(chaves retidas em memória — sem reenvio)")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # ─────────────────────────────────────────────────── canal do operador
@@ -352,7 +377,8 @@ def tick(cfg, _agora=None, _canal=None, _agenda=None, _emails=None) -> None:
             except ValueError:
                 hh, mm = 7, 0
             devido = (agora.hour, agora.minute) >= (hh, mm)
-            enviado_hoje = reg.get("briefing_data") == hoje
+            enviado_hoje = (reg.get("briefing_data") == hoje
+                            or _MEMO_BRIEFING.get(str(cfg.data_dir)) == hoje)
             ultima_tent = float(reg.get("briefing_tentativa", 0) or 0)
             em_backoff = (time.time() - ultima_tent) < _BACKOFF_FALHA_S
             if devido and not enviado_hoje and not em_backoff:
@@ -362,6 +388,7 @@ def tick(cfg, _agora=None, _canal=None, _agenda=None, _emails=None) -> None:
                 if r.get("ok"):
                     reg["briefing_data"] = hoje
                     reg["briefing_tentativa"] = 0   # sucesso zera o backoff
+                    _MEMO_BRIEFING[str(cfg.data_dir)] = hoje  # P8.2: memo
                 _salvar_registro(cfg, reg)
         # ── lembretes (a cada 5 min)
         if int(getattr(cfg, "lembrete_min", 30) or 0) > 0:

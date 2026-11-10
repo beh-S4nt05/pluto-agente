@@ -160,7 +160,9 @@ class ConversationStore:
         self._base.mkdir(parents=True, exist_ok=True)
         path = self._base / "current.json"
         if session_id and SESSION_ID_RE.fullmatch(session_id):
-            path.write_text(json.dumps({"id": session_id}), encoding="utf-8")
+            # P8.2 (T259, auditoria M6): atômico
+            from .atomic import atomic_write
+            atomic_write(path, json.dumps({"id": session_id}))
         else:
             path.unlink(missing_ok=True)
 

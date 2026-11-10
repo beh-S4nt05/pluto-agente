@@ -1345,9 +1345,11 @@ def T41_secrets_protegidos_contra_o_agente():
     r2 = execute_tool("run_command",
                       {"command": "grep -i senha ~/.pluto/secrets/email.json"}, cfg)
     assert not r2["ok"] and "credenciais" in r2["output"]
-    # read_file fora do workspace → sandbox bloqueia
+    # read_file fora do workspace → sandbox bloqueia (P8.2: segredos do
+    # data-dir ATIVO agora caem na regra MAIS precisa de pasta sensível)
     r3 = execute_tool("read_file", {"path": str(p)}, cfg)
-    assert not r3["ok"] and "workspace" in r3["output"]
+    assert not r3["ok"] and ("workspace" in r3["output"]
+                             or "sens" in r3["output"].lower()), r3
     # e a senha NUNCA vai para o config.yaml (que a GUI exporta em /api/settings)
     cfg.save()
     yaml_txt = cfg.path.read_text(encoding="utf-8")
@@ -11973,6 +11975,199 @@ def T256_secretario_com_dlp():
     assert enviados, "lembrete deveria disparar"
     assert "maria@corp.com" not in canal[-1]
     assert "[REDACTED" in canal[-1] and "Call" in canal[-1]
+
+
+@case
+def T257_segredos_por_data_dir_e_escopo_sensivel():
+    """V9.0.0 P8.2 (T257): achado M4 da auditoria SDD — os segredos
+    eram procurados só no caminho FIXO ~/.pluto/secrets: com data-dir
+    customizado (--data-dir/PLUTO_DATA_DIR) o read_file LIA o
+    secrets/telegram.key (PoC reproduzido na validação). E ~/.ssh,
+    ~/.aws, ~/.gnupg eram aceitos como escopo de projeto — dentro de
+    um escopo a checagem de pasta sensível era pulada. Agora: o
+    secrets do data-dir ATIVO é bloqueado e pastas de credenciais da
+    home NUNCA são escopo."""
+    from pluto import tools as T
+    from pluto.config import Config
+
+    # (1) data-dir customizado DENTRO da home → secrets bloqueado
+    dd = Path.home() / "pluto-t257-audit"
+    (dd / "secrets").mkdir(parents=True, exist_ok=True)
+    (dd / "secrets" / "telegram.key").write_text("TOKEN-SECRETO-T257",
+                                                 encoding="utf-8")
+    try:
+        cfg = Config(data_dir=dd, mock=True)
+        r = T.execute_tool("read_file",
+                           {"path": str(dd / "secrets" / "telegram.key")},
+                           cfg)
+        assert not r["ok"] and "sens" in r["output"].lower(), r
+        # leitura NORMAL no data-dir segue liberada (só secrets não)
+        (dd / "nota.txt").write_text("ok", encoding="utf-8")
+        r = T.execute_tool("read_file", {"path": str(dd / "nota.txt")}, cfg)
+        assert r["ok"] and "ok" in r["output"]
+    finally:
+        shutil.rmtree(dd, ignore_errors=True)
+
+    # (2) credenciais da home NUNCA são escopo de projeto
+    cfg2 = fresh()
+    for sub in (".ssh", ".aws", ".gnupg"):
+        try:
+            T.validar_escopo_projeto(f"~/{sub}", cfg2)
+            raise AssertionError(f"escopo ~/{sub} aceito")
+        except T.ToolError as e:
+            assert "credenciais" in str(e), e
+        except FileNotFoundError:
+            pass          # pasta não existe neste host: validação passa
+    # escopo NORMAL da home segue funcionando
+    ok_dir = Path.home() / "pluto-t257-proj-ok"
+    ok_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        p = T.validar_escopo_projeto(str(ok_dir), cfg2)
+        assert p == ok_dir.resolve()
+    finally:
+        ok_dir.rmdir()
+
+
+@case
+def T258_ok_inferido_por_prefixo_de_erro():
+    """V9.0.0 P8.2 (T258): achado M7 da auditoria SDD — execute_tool
+    inferia ok por prefixo (só ERRO/BLOQUEADO); ≥7 tools retornam
+    erro honesto começando com ✖ e eram auditadas como ok=True. Agora
+    ✖ também é falha; sucesso ✔ segue ok=True."""
+    from pluto.tools import execute_tool
+
+    cfg = fresh()
+    r = execute_tool("projeto", {"acao": "voar"}, cfg)
+    assert not r["ok"] and "desconhecida" in r["output"], r
+    r = execute_tool("git_run", {"action": "push"}, cfg)
+    assert not r["ok"] and "BLOQUEADO" in r["output"], r
+    r = execute_tool("projeto", {"acao": "criar", "nome": "T258"}, cfg)
+    assert r["ok"] and "criado" in r["output"], r
+
+
+@case
+def T259_escrita_atomica_e_secretario_sem_loop():
+    """V9.0.0 P8.2 (T259): achado M6 da auditoria SDD — (a) NFR-03
+    prometia escrita atômica "em tudo que persiste" mas havia ~53
+    write_text diretos: helper ÚNICO pluto/atomic.py, migrando os
+    citados (config.yaml, current.json, notifications.json,
+    secretario.json, lembretes.json); (b) _salvar_registro engolia
+    OSError em silêncio — se a escrita falhasse, a trava 1×/dia sumia
+    e o briefing re-disparava a cada 15 s: agora a falha é LOGADA e o
+    espelho em memória segura a trava (sem loop)."""
+    from datetime import datetime, timedelta
+    from unittest.mock import patch
+
+    from pluto import secretario
+    from pluto.atomic import atomic_write
+
+    # (a) helper: roundtrip + sobrescrita + sem .tmp sobrando
+    alvo = Path(fresh().data_dir) / "sub" / "arq.json"
+    atomic_write(alvo, "v1")
+    assert alvo.read_text(encoding="utf-8") == "v1"
+    atomic_write(alvo, "v2")
+    assert alvo.read_text(encoding="utf-8") == "v2"
+    assert not list(alvo.parent.glob("*.tmp"))
+
+    # (a3) CONCORRÊNCIA (regressão da race que o T71 pegou na P8.2):
+    # 12 threads × 20 escritas no MESMO arquivo — nenhuma exceção e o
+    # arquivo final é sempre uma versão COMPLETA válida
+    import threading as _th
+    alvo2 = Path(fresh().data_dir) / "shared.json"
+    erros: list[Exception] = []
+
+    def _w(i):
+        try:
+            for k in range(20):
+                atomic_write(alvo2, json.dumps({"i": i, "k": k}))
+        except Exception as e:  # noqa: BLE001
+            erros.append(e)
+
+    ths = [_th.Thread(target=_w, args=(i,)) for i in range(12)]
+    for x in ths:
+        x.start()
+    for x in ths:
+        x.join(timeout=30)
+    assert not erros, erros[:3]
+    assert json.loads(alvo2.read_text(encoding="utf-8"))["i"] >= 0
+
+    # (b1) falha de escrita NÃO explode e NÃO fica em silêncio (log)
+    cfg = fresh()
+    with patch("pluto.atomic.atomic_write",
+               side_effect=OSError("disco cheio")):
+        secretario._salvar_registro(cfg, {"x": 1})   # não levanta
+        secretario._marcar_lembrete(cfg, {"k"})      # não levanta
+
+    # (b2) memo em memória: lembrete NÃO re-dispara quando o arquivo
+    # some (a condição do loop da auditoria)
+    class Canal(list):
+        def enviar(self, texto, chat_id=None):
+            self.append(texto)
+
+    canal = Canal()
+    daqui = datetime.now().astimezone() + timedelta(minutes=10)
+    evs = lambda c: [{"titulo": "T259 evento", "inicio": daqui}]
+    n1 = len(secretario.checar_lembretes(
+        cfg, agora=datetime.now().astimezone(), _eventos=evs, _canal=canal))
+    assert n1 == 1
+    (Path(cfg.data_dir) / "lembretes.json").unlink(missing_ok=True)
+    n2 = len(secretario.checar_lembretes(
+        cfg, agora=datetime.now().astimezone(), _eventos=evs, _canal=canal))
+    assert n2 == 0, "lembrete re-disparou com o arquivo apagado (loop)"
+
+    # (a2) migração pinada no fonte (os 5 pontos citados pela auditoria)
+    for fonte in ("pluto/config.py", "pluto/conversations.py",
+                  "pluto/notify.py", "pluto/secretario.py"):
+        assert "atomic_write" in Path(fonte).read_text(encoding="utf-8"), \
+            fonte
+
+
+@case
+def T260_hook_pre_push():
+    """V9.0.0 P8.2 (T260): achado M5 da auditoria SDD — o §2.5
+    prometia "pré-push: varredura bloqueia" mas NÃO existia hook em
+    lugar nenhum (só convenção; o CI roda DEPOIS do push). Agora
+    `pluto gates --instalar-hook` grava .git/hooks/pre-push que roda a
+    varredura ANTES do push sair; hook alheio nunca é sobrescrito;
+    --remover-hook remove."""
+    import subprocess as sp
+    from pluto import cli
+
+    if shutil.which("git") is None:
+        print("     ↳ T260: git ausente neste host — pulado (CI o cobre)")
+        return
+
+    repo = Path(tempfile.mkdtemp(prefix="pluto-t260-"))
+    cwd_antigo = os.getcwd()
+    try:
+        sp.run(["git", "init", "-q"], cwd=repo, check=True,
+               capture_output=True)
+        os.chdir(repo)
+        parser = cli.build_parser()
+
+        args = parser.parse_args(["gates", "--instalar-hook"])
+        cli.cmd_gates(args)
+        hook = repo / ".git" / "hooks" / "pre-push"
+        assert hook.is_file(), "hook não instalado"
+        assert os.access(hook, os.X_OK), "hook sem executável"
+        conteudo = hook.read_text(encoding="utf-8")
+        assert "varredura" in conteudo and "pluto" in conteudo
+
+        # hook ALHEIO nunca é sobrescrito
+        hook.write_text("#!/bin/sh\necho meu hook\n", encoding="utf-8")
+        cli.cmd_gates(parser.parse_args(["gates", "--instalar-hook"]))
+        assert "meu hook" in hook.read_text(encoding="utf-8")
+
+        # remover só o NOSSO
+        cli.cmd_gates(parser.parse_args(["gates", "--remover-hook"]))
+        assert "meu hook" in hook.read_text(encoding="utf-8")
+        hook.write_text("# instalado por: pluto gates --instalar-hook\n",
+                        encoding="utf-8")
+        cli.cmd_gates(parser.parse_args(["gates", "--remover-hook"]))
+        assert not hook.exists()
+    finally:
+        os.chdir(cwd_antigo)
+        shutil.rmtree(repo, ignore_errors=True)
 
 
 if __name__ == "__main__":

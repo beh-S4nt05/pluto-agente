@@ -206,7 +206,10 @@ class Config:
                 "quando o projeto fica em disco NTFS). Conserte com: "
                 "pip install --force-reinstall --no-cache-dir PyYAML"
             ) from exc
-        self.path.write_text(text, encoding="utf-8")
+        # P8.2 (T259, auditoria M6): config.yaml atômico — crash no meio
+        # não deixa a configuração pela metade
+        from .atomic import atomic_write
+        atomic_write(self.path, text)
 
     def update(self, changes: dict) -> None:
         for k, v in changes.items():

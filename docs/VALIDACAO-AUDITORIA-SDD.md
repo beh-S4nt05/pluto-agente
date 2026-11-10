@@ -95,3 +95,25 @@ Os 3 achados Alta foram corrigidos e provados por regressão:
 Próximos da lista da auditoria: M4 (secrets por data-dir), M7
 (inferência de `ok`), M6 (escritas atômicas), M5 (hook pré-push)
 → docs → P0.1 → release.
+
+
+---
+
+## 7. Atualização (10/11/2026, parte 2) — P8.2 ENTREGUE
+
+Médias de segurança/robustez corrigidas e provadas:
+- **M4 → T257**: secrets do data-dir ATIVO bloqueados no read_file
+  (o PoC da validação agora retorna 'pasta sensível bloqueada') e
+  ~/.ssh/~/.aws/~/.gnupg recusados como escopo.
+- **M7 → T258**: prefixo ✖ conta como falha no execute_tool.
+- **M6 → T259**: pluto/atomic.py (helper único) migrado nos 5
+  pontos; _salvar_registro/_marcar_lembrete logam a falha; memo
+  em memória segura a trava 1×/dia e os lembretes.
+- **M5 → T260**: hook pré-push instalável (pluto gates
+  --instalar-hook), hook alheio nunca sobrescrito.
+- **Honestidade**: a própria migração atômica introduziu uma race
+  (tmp compartilhado entre threads → 500 no T71); o T71 pegou,
+  o tmp virou único por escrita e a regressão entrou no T259.
+
+Restam da auditoria: docs/spec (M8 skills, M9 portões, M11
+versões, M12 diretrizes no repo, §3 RFs) → P0.1 → release.

@@ -766,12 +766,18 @@ def cmd_secretario(args) -> None:
 def cmd_gates(args) -> None:
     """V9.0.0 (T242): os portões de qualidade em 1 comando — ruff →
     suíte → varredura. Espelho EXATO do pipeline do GitHub Actions
-    (.github/workflows/ci.yml): o que passa aqui, passa no CI."""
+    (.github/workflows/ci.yml): o que passa aqui, passa no CI.
+    P8.2 (T260, auditoria M5): --instalar-hook grava o hook pré-push
+    do git (varredura CRÍTICO bloqueia o push ANTES de sair)."""
     import subprocess
     import sys
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parent.parent
+    if getattr(args, "instalar_hook", False) or getattr(
+            args, "remover_hook", False):
+        _hook_pre_push(instalar=bool(getattr(args, "instalar_hook", False)))
+        return
     passos = [
         ("ruff (lint)",
          [sys.executable, "-m", "ruff", "check", "--select",
@@ -844,6 +850,46 @@ def cmd_grafo(args) -> None:
     """v4.4.0 (PR#7): grafo de código (onde está a lógica de X?)."""
     from . import grafo
     grafo.cmd(args, _cfg(args))
+
+
+def _hook_pre_push(instalar: bool) -> None:
+    """P8.2 (T260, auditoria M5): instala/remove o hook pré-push do git
+    no repo do diretório atual — a varredura roda ANTES do push sair
+    (CRÍTICO bloqueia). Hook alheio nunca é sobrescrito."""
+    import sys
+    from pathlib import Path
+    marca = "# instalado por: pluto gates --instalar-hook"
+    d = Path.cwd()
+    hook = None
+    while d != d.parent:
+        if (d / ".git").is_dir():
+            hook = d / ".git" / "hooks" / "pre-push"
+            break
+        d = d.parent
+    if hook is None:
+        _p("✖ nenhum repo git a partir do diretório atual "
+           "(procurei .git nas pastas acima)")
+        return
+    if instalar:
+        if hook.exists() and marca not in hook.read_text(encoding="utf-8"):
+            _p(f"✖ {hook} já existe e não é nosso — não vou sobrescrever "
+               "(remova-o manualmente se quiser o hook do Pluto)")
+            return
+        conteudo = (
+            "#!/bin/sh\n" + marca + "\n"
+            f'exec "{sys.executable}" -m pluto varredura --tudo\n')
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        hook.write_text(conteudo, encoding="utf-8")
+        hook.chmod(0o755)
+        _p(f"✔ hook pré-push instalado: {hook}\n  todo `git push` roda a "
+           "varredura antes — CRÍTICO bloqueia (remover: pluto gates "
+           "--remover-hook)")
+    else:
+        if hook.exists() and marca in hook.read_text(encoding="utf-8"):
+            hook.unlink()
+            _p(f"✔ hook pré-push removido: {hook}")
+        else:
+            _p(f"– nada a remover (sem hook do Pluto em {hook})")
 
 
 def cmd_projeto(args) -> None:
@@ -1063,6 +1109,11 @@ def build_parser() -> argparse.ArgumentParser:
                             "varredura) — espelho local do CI")
     p.add_argument("--lista", action="store_true",
                    help="só lista os portões; nada é executado")
+    p.add_argument("--instalar-hook", action="store_true",
+                   help="instala o hook pré-push do git (varredura "
+                        "bloqueia o push ANTES de sair)")
+    p.add_argument("--remover-hook", action="store_true",
+                   help="remove o hook pré-push do Pluto")
     p.set_defaults(fn=cmd_gates)
     p = sub.add_parser("init",
                        help="cria HERMES.md (instruções duráveis do projeto)")
