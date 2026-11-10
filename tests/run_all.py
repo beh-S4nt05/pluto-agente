@@ -11546,13 +11546,27 @@ def T251_sandbox_jail_provada():
     prog = SK.bpf_blocklist()
     assert len(prog) % 8 == 0 and len(prog) >= 32, len(prog)
 
-    # 2) sem bwrap/userns no host → degradação HONESTA: argv intacto
+    # 2) wiring do git no FONTE — antes do guard de bwrap: análise de
+    #    código não precisa de jaula e deve valer em TODOS os SOs
+    #    (lição do run 42825122424: o recorte por janela fixa de 1500
+    #    chars quebrou quando o git_run ganhou o denylist do P8.1 — e
+    #    local "verde" escondeu porque a degradação retornava antes
+    #    deste item; recorte agora vai até a próxima def de módulo)
+    src = Path("pluto/tools.py").read_text(encoding="utf-8")
+    i = src.index("def git_run")
+    j = src.index("\ndef ", i + 1)
+    bloco = src[i:j]
+    assert "envolver_comando(cfg, cmd, str(cwd), net=False)" in bloco
+    assert "core.fsmonitor" in bloco           # P8.1 (A2): denylist
+    assert "--output" in bloco
+
+    # 3) sem bwrap/userns no host → degradação HONESTA: argv intacto
     if SK.probe() is None:
         argv, fds = envolver_comando(fresh(), ["git", "status"], "/tmp")
         assert argv == ["git", "status"] and fds == ()
         print("     ↳ T251: bwrap/userns indisponível neste host — "
               "degradação honesta validada (a jaula REAL é provada no "
-              "CI Linux)")
+              "CI Linux; o wiring do git foi verificado acima)")
         return              # CI Linux (bwrap instalado) prova o resto
 
     print(f"     ↳ T251: jaula REAL em execução (nível {SK.probe()})")
@@ -11594,11 +11608,8 @@ def T251_sandbox_jail_provada():
         fechar_fds(fds)
     assert r.returncode != 0, "jaula com net=False ainda conectou"
 
-    # 6) git do agente: enjaulado com net=False (wiring no fonte)
-    src = Path("pluto/tools.py").read_text(encoding="utf-8")
-    i = src.index("def git_run")
-    bloco = src[i:i + 1500]
-    assert "envolver_comando(cfg, cmd, str(cwd), net=False)" in bloco
+    # 6) git do agente: enjaulado com net=False — wiring já provado no
+    #    item 2 (fonte), em todos os SOs
 
 
 @case
