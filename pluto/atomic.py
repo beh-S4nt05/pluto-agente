@@ -13,6 +13,7 @@ from __future__ import annotations
 import itertools
 import os
 import threading
+import time
 from pathlib import Path
 
 _SEQ = itertools.count()      # contador thread-safe p/ tmp único
@@ -24,15 +25,27 @@ def atomic_write(path: Path | str, texto: str) -> None:
     Cria diretórios pais se faltarem. Levanta OSError da escrita real —
     quem chama decide se engole (e deve LOGAR, nunca silêncio).
 
-    CONCORRÊNCIA (lição do T71 na P8.2): o tmp é ÚNICO POR ESCRITA
-    (pid · thread · sequência) — escritas paralelas do mesmo arquivo
-    não disputam o mesmo tmp (a primeira dava replace e a segunda
-    explodia FileNotFoundError). ``os.replace`` continua atômico: o
-    arquivo final é sempre uma versão COMPLETA (a última que venceu).
+    CONCORRÊNCIA (lições do T71 na P8.2 — ele pegou as duas):
+    - o tmp é ÚNICO POR ESCRITA (pid · thread · sequência) — escritas
+      paralelas não disputam o mesmo tmp (a primeira dava replace e a
+      segunda explodia FileNotFoundError);
+    - no WINDOWS, ``os.replace`` falha com PermissionError se o destino
+      estiver aberto por um LEITOR (WinError 5). Retry curto; se a
+      contenção persistir, cai para escrita direta de último-vencedor
+      (o comportamento pré-atômico) — nunca derruba quem chama.
     """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     tmp = p.with_name(f"{p.name}.{os.getpid()}.{threading.get_ident()}"
                       f".{next(_SEQ)}.tmp")
     tmp.write_text(texto, encoding="utf-8")
-    os.replace(tmp, p)
+    try:
+        for tentativa in range(4):
+            try:
+                os.replace(tmp, p)
+                return
+            except PermissionError:    # Win: destino aberto por leitor
+                time.sleep(0.005 * (tentativa + 1))
+        p.write_text(texto, encoding="utf-8")   # último-vencedor
+    finally:
+        tmp.unlink(missing_ok=True)
