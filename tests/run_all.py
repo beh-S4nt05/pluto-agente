@@ -2122,34 +2122,35 @@ def T85_entrega_pendente_finaliza_pos_restart():
                                   "session_id": "s85"})
         ap1 = _esperar(evs, lambda e: e.get("type") == "approval_request"
                        and e.get("kind") == "plano")
-        assert ap1
+        assert ap1, evs[:6]
         assert c.post("/api/chat/approve", json={
             "id": ap1["id"], "action": "aprovar"}).get_json()["ok"]
         ap2 = _esperar(evs, lambda e: e.get("type") == "approval_request"
                        and e.get("kind") == "entrega", seg=60)
-        assert ap2 and ap2["texto"]
+        assert ap2 and ap2["texto"], (ap2, evs[-8:])
         tid = ap2["id"]                     # "<base>-e"
         # ── "restart" ──
         orc._APPROVALS.clear()
         c2 = _app(cfg)
         d = c2.get("/api/approvals/pending").get_json()
         pend = [p for p in d["pending"] if p["id"] == tid]
-        assert pend and pend[0]["kind"] == "entrega"
-        assert pend[0]["texto"] and pend[0]["task_id"]
+        assert pend and pend[0]["kind"] == "entrega", d
+        assert pend[0]["texto"] and pend[0]["task_id"], pend[0]
         base = pend[0]["task_id"]
         # refazer pós-restart: recusado com explicação, NÃO consome
         r = c2.post("/api/chat/approve", json={
             "id": tid, "action": "refazer"})
-        assert r.status_code == 400 and "restart" in r.get_json()["msg"]
+        assert r.status_code == 400 and "restart" in r.get_json()["msg"], (
+            r.status_code, r.get_json())
         assert any(p["id"] == tid for p in
                    c2.get("/api/approvals/pending").get_json()["pending"])
         # entregar finaliza na hora com o texto preservado
         r = c2.post("/api/chat/approve", json={
             "id": tid, "action": "entregar"}).get_json()
-        assert r["ok"] and r["final"]
+        assert r["ok"] and r["final"], r
         alvo = [tk for tk in orc.list_tasks(cfg) if tk["id"] == base]
-        assert alvo and alvo[0]["status"] == "aprovada"
-        assert alvo[0]["aprovacao"] == "retomada·entregue"
+        assert alvo and alvo[0]["status"] == "aprovada", alvo
+        assert alvo[0]["aprovacao"] == "retomada·entregue", alvo[0]
         assert all(p["id"] != tid for p in
                    c2.get("/api/approvals/pending").get_json()["pending"])
     finally:
