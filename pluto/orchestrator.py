@@ -468,7 +468,13 @@ def _goals_path(cfg) -> Path:
 # ──────────── v3.15.0 (PR#1): detecção da pasta do projeto no pedido ────────────
 
 _PROJETO_RE = re.compile(
-    r"(?:^|[\s'\"(\[])(~/[^\s'\"()\[\]]+|/[A-Za-z][^\s'\"()\[\]]*)")
+    r"(?:^|[\s'\"(\[])"
+    r"(~/[^\s'\"()\[\]]+"
+    r"|/[A-Za-z][^\s'\"()\[\]]*"
+    # P0.1 (lote 3): caminho de drive do Windows (C:\pasta\app) — o
+    # operador de lá cita o projeto assim; sem isso o escopo nunca
+    # era detectado e a task rodava fora da pasta do projeto.
+    r"|[A-Za-z]:[/\\][^\s'\"()\[\]]*)")
 
 
 def _detectar_projetos(message: str) -> list[Path]:
@@ -476,7 +482,8 @@ def _detectar_projetos(message: str) -> list[Path]:
 
     Ignora URLs (nada precede a barra), frações/datas (24/09) e âncoras
     de markdown. O operador declara o projeto assim: 'crie X em
-    /media/Arquivos/projetos/app' ou '~/projetos/app'."""
+    /media/Arquivos/projetos/app', '~/projetos/app' ou (Windows)
+    'C:\\Users\\voce\\projetos\\app'."""
     achados: list[Path] = []
     for m in _PROJETO_RE.finditer(message or ""):
         cand = m.group(1).rstrip(".,;:!?")
@@ -803,10 +810,15 @@ def _pergunta_caminho(message: str, goal: str, session_id: str) -> str:
     with _PEND_PROJ_LOCK:
         _PEND_PROJETO[session_id or "default"] = {
             "message": message, "t": time.time()}
+    # P0.1 (lote 3): exemplo de caminho do SO corrente (POSIX × Windows)
+    import os as _os
+    exemplo = (r"C:\Users\voce\projetos\2026\meu-app ou ~/projetos/meu-app"
+               if _os.name == "nt" else
+               "/media/Arquivos/projetos/2026/meu-app ou ~/projetos/meu-app")
     return (
         "📁 Para iniciar este projeto preciso do caminho da pasta — pode ser "
-        "em qualquer ponto do diretório (ex.: /media/Arquivos/projetos/2026/"
-        "meu-app ou ~/projetos/meu-app). A pasta será **buscada e criada** "
+        f"em qualquer ponto do diretório (ex.: {exemplo}). A pasta será "
+        "**buscada e criada** "
         "se ainda não existir, e todo o trabalho (arquivos, execução, git) "
         "acontecerá lá.\n\nResponda com o caminho para eu começar "
         "(ou diga *cancela* para desistir).")

@@ -65,7 +65,10 @@ CLAUDE_LIGHT_PROMPT = (
     "COMPLETO (Edit) e EXECUTE (Bash), colando a saída real na resposta. "
     "PROIBIDO escrever JSON Schema, XML, exemplos de chamada de ferramenta "
     "ou qualquer explicação sobre como usar ferramentas. Nunca invente dados."
-    "\nREGRA INVIOLÁVEL DE EXECUÇÃO: escrever um comando dentro de um bloco "
+    # P0.1 (lote 3): UMA linha só — no Windows o Claude Code instalado via
+    # npm é um shim .cmd, e cmd.exe CORTA o argv no 1º LF (o argumento
+    # chegaria truncado ao CLI de verdade).
+    " · REGRA INVIOLÁVEL DE EXECUÇÃO: escrever um comando dentro de um bloco "
     "de código é ERRO — o comando só existe quando você CHAMA a ferramenta "
     "Bash. NUNCA peça ao usuário para executar, verificar, abrir o terminal "
     "ou 'conferir com lscpu': quem executa é VOCÊ, com a ferramenta Bash. "

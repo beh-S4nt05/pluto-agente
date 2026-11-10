@@ -909,8 +909,13 @@ _SENSITIVE_READ = ["~/.pluto/secrets", "~/.ssh", "~/.gnupg", "~/.config",
 # própria configuração (~/.pluto). Escopo é por THREAD: tasks concorrentes
 # não vazam escopo umas para as outras.
 
+# P0.1 (lote 3): entradas Windows — no Windows os caminhos de sistema
+# são por drive (C:\Windows etc.); na análise estática POSIX elas
+# resolvidas relativas ao CWD e nunca casam (inofensivas).
 _SCOPE_DENY = ("/tmp", "/proc", "/sys", "/dev", "/etc", "/var", "/usr",
-               "/boot", "/run", "/snap")
+               "/boot", "/run", "/snap",
+               "C:\\Windows", "C:\\Program Files",
+               "C:\\Program Files (x86)", "C:\\ProgramData")
 _TASK_SCOPE = threading.local()
 _EVENT_SINK = threading.local()      # v8.0.0: ferramenta emite evento
 
@@ -935,9 +940,13 @@ def validar_escopo_projeto(path, cfg=None) -> Path:
     """Valida (sem criar) a pasta de projeto declarada pelo operador."""
     bruto = Path(path).expanduser()
     if not bruto.is_absolute():
+        # P0.1 (lote 3): exemplo do SO corrente
+        exemplo = (r"C:\Users\voce\projetos\app"
+                   if os.name == "nt"
+                   else "/media/Arquivos/projetos/app")
         raise ToolError(
-            "caminho de projeto deve ser absoluto (ex.: /media/Arquivos/projetos "
-            "/app ou ~/projetos/app)")
+            f"caminho de projeto deve ser absoluto (ex.: {exemplo} "
+            "ou ~/projetos/app)")
     p = bruto.resolve()
     if p == Path.home().resolve():
         raise ToolError(

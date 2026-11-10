@@ -186,7 +186,7 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **M5 → T260**: `pluto gates --instalar-hook` grava o hook pré-push
   (varredura bloqueia o push ANTES de sair; hook alheio preservado).
 
-### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 2/≈5)
+### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 3/≈5)
 - **Lote 1 ✔ (10/11)**: T107-mac — bug REAL de segurança corrigido
   (deny nos dois planos: /etc→/private/etc não escapa) + prova de
   symlink na suíte. Restam 38 (37 win · 4 mac).
@@ -198,9 +198,15 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
   `/T` (órfãos), `fluxos.n8n_bin` sem o shim `n8n.cmd` do npm,
   `multimodal` decodando cp1252 (whisper.cpp emite UTF-8). Restam
   33 (32 win · 4 mac).
-- Lotes seguintes: B-caminhos (≈10) · C-prompts POSIX (3) ·
-  D-produto (T98/T174/T188) · E-guards (2) · F-update (3) ·
-  G-triagem (11).
+- **Lote 3 ✔ (10/11)**: grupo B win (11) — T17/T29/T41/T108/T109/
+  T116/T120/T151/T197/T202/T209; 4 bugs reais de produto corrigidos:
+  `_PROJETO_RE` sem ramo de drive (caminho `C:\…` citado nunca virava
+  escopo), `_MENCAO_RE` perdendo `@C:\…` (casava só 'C'),
+  `CLAUDE_LIGHT_PROMPT` com LF (shim .cmd do npm corta argv no 1º LF),
+  `_SCOPE_DENY` sem entradas Windows (buraco aberto pelo novo ramo,
+  fechado no mesmo commit). Restam 22 (21 win · 4 mac).
+- Lotes seguintes: C-prompts POSIX (2) · D-produto (T98/T174/T188) ·
+  E-guards (2) · F-update (3) · G-triagem (11).
 
 ### P0.1 — Queimar a dívida de portabilidade (43 testes) · NOVO
 - `docs/PORTABILIDADE.md` lista cada teste com causa e prioridade;

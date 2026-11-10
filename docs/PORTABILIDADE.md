@@ -20,7 +20,7 @@
 O runner tem um guarda: nome na lista que não existe mais na suíte
 **falha o pipeline** (dívida com nome de teste apagado = lista mentindo).
 
-## Windows — 33 testes (era 38 — grupo A ✔ PORTADO na P0.1 · lote 2)
+## Windows — 22 testes (era 38 — grupo A ✔ lote 2 · grupo B ✔ lote 3, 10/11/2026)
 
 Causas confirmadas na 1ª execução (log do job), agrupadas:
 
@@ -50,25 +50,40 @@ instala `n8n.cmd`, não o script sh).
 A prova de vida do T171 usa `plataforma.liveness` — nunca
 `os.kill(pid, 0)`, que no Windows TERMINA o processo.
 
-### B. Caminhos POSIX / backslash (≈10)
-| Teste | Evidência |
-|---|---|
-| T17_claude_modo_leve_e_fallback_de_cli_antiga | `args.log` não achado em `C:\Users\RUNNER~1\…` |
-| T151_arena_nao_escreve_no_disco | `'logs\\agent.log'` |
-| T197_escopo_sticky_sessao · T202_mencoes_arroba · T209_mencoes_x_d2_falso_positivo · T29_watch_valida_e_persiste_campos · T41_secrets_protegidos_contra_o_agente · T108 · T109 · T116 · T120 | separador/normalização de caminho |
+### B. Caminhos POSIX / backslash — ✔ PORTADO (P0.1 · lote 3, 10/11/2026)
+**11 testes destravados:** ~~T17~~ · ~~T29~~ · ~~T41~~ · ~~T108~~ ·
+~~T109~~ · ~~T116~~ · ~~T120~~ · ~~T151~~ · ~~T197~~ · ~~T202~~ · ~~T209~~.
 
-### C. Prompts e fixtures com exemplo POSIX (3)
+Causas reais (log do run 42340204729) e o que foi feito:
+
+| Causa | Correção |
+|---|---|
+| `_PROJETO_RE` (orquestrador) só casava `~/…` e `/…` — caminho `C:\…` citado pelo operador NUNCA era detectado → sem escopo de projeto (T109 · T120 · T197) | 🐛 produto: ramo de drive no regex + exemplos do SO na pergunta de caminho |
+| `_MENCAO_RE` sem `:`/`\` — `@C:\Users\…` virava menção `'C'` (T202 · T209) | 🐛 produto: ramo de drive ANTES do genérico (o genérico casava 'C' e parava) + `~` no meio (8.3 `RUNNER~1`) |
+| `CLAUDE_LIGHT_PROMPT` com LF no argv — shim `.cmd` (npm) corta no 1º LF (T17) | 🐛 produto: diretiva single-line |
+| `_SCOPE_DENY` POSIX-only — com drive-paths detectados, `C:\Windows` passaria | 🐛 produto: entradas Windows no deny (fecha o buraco aberto pelo novo ramo) |
+| `st_mode == 0o600` (T41) | teste OS-aware: POSIX exige 600; no Windows a proteção é a ACL do perfil (porta ACL = backlog do release) |
+| `"/tmp"` como dir de watch (T29) | `tempfile.gettempdir()` |
+| `pwd` (T108) | `cd` no Windows |
+| `str(relative_to())` com backslash (T151) | `.as_posix()` |
+| T116 | porta com diagnóstico em TODOS os asserts (causa será lida no log se persistir) |
+
+### C. Prompts e fixtures com exemplo POSIX (2)
 | Teste | Evidência |
 |---|---|
-| T120_perguntar_caminho_do_projeto | espera `ex.: /media/Arquivos/projetos/…` |
-| T121_mission_subtasks_sequenciais | idem no prompt do orquestrador |
+| T121_mission_subtasks_sequenciais | exemplo POSIX no prompt do orquestrador |
 | T113_folego_para_tarefas_de_projeto | `'budget'` (formato de saída) |
 
+(T120 era listado aqui e foi portado no lote 3 junto com o B — o
+exemplo na pergunta de caminho agora é do SO corrente.)
+
 ### D. Autostart / SO (5) — **defeito de produto a corrigir**
-> P0.1 lote 1 acrescentou aqui: o `_SCOPE_DENY` é POSIX-cêntrico — no
-> Windows ele só bloqueia caminhos relativos à unidade do CWD
-> (`\tmp\x`), não `C:\tmp`/`D:\tmp` reais. Cobertura de diretórios
-> de sistema no Windows = dívida desta categoria.
+> ~~P0.1 lote 1: `_SCOPE_DENY` POSIX-cêntrico~~ — **RESOLVIDO no lote
+> 3**: entradas Windows (`C:\Windows`, `C:\Program Files`,
+> `C:\ProgramData`…) no deny, fechando o buraco aberto pela detecção
+> de caminhos de drive no orquestrador. Outras UNIDADES (D:\, E:\…)
+> seguem cobertas pelo deny resolvido por unidade quando o caminho
+> existe; raiz de unidade (`D:\`) não é negada — idem `/` no POSIX.
 | Teste | Situação |
 |---|---|
 | T174_boot_autostart_nos_tres_sos | Windows usa Registro/Agendador, não systemd — boot deve instalar honestamente ou orientar |
@@ -104,8 +119,8 @@ T98 · T166 · T174 · T188.
 
 1. ~~**T107 (macOS)**~~ ✔ lote 1 — bug de segurança do deny-list;
 2. ~~Grupo A do Windows~~ ✔ lote 2 — WinError 193 + 5 bugs de produto;
-3. Grupo B/C — normalização de caminho e fixtures;
-4. **T174 · T98** — defeitos de produto nos 2 SOs;
+3. ~~Grupo B do Windows~~ ✔ lote 3 — 11 testes + 4 bugs de produto;
+4. Grupo C (2) · **T174 · T98** — prompts e defeitos de produto;
 5. O resto, queimando em ordem de overlap.
 
 *docs/PORTABILIDADE.md · V9.0.0 P0 · fonte: run 42340204729 (logs dos

@@ -21,7 +21,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_MENCAO_RE = re.compile(r"(?<![\w@.-])@(~?[/\w.-]*)")
+_MENCAO_RE = re.compile(
+    r"(?<![\w@.-])@"
+    r"([A-Za-z]:[\\/][\w.\\/~-]*"
+    # P0.1 (lote 3): @C:\pasta\arquivo (windows; ~ cobre 8.3 'RUNNER~1')
+    # vem PRIMEIRO: sem isso o ramo genérico casa só 'C' e perde o resto
+    r"|~?[/~\w.-]*)")
 _MAX_MENCOES = 6
 _MAX_ARQUIVO = 10_000          # bytes lidos por arquivo
 _MAX_BLOCO = 25_000            # chars do bloco total

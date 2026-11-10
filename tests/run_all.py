@@ -81,25 +81,17 @@ _SO = {"Linux": "linux", "Darwin": "macos",
 
 _NAO_PORTADOS: dict = {
     "windows": {
-        "T17_claude_modo_leve_e_fallback_de_cli_antiga",
-        "T29_watch_valida_e_persiste_campos",
         "T38_guard_retry_modelo_recupera_e_executa",
         "T39_guard_teimoso_hermes_executa_no_lugar",
-        "T41_secrets_protegidos_contra_o_agente",
         "T55_skills_aplicadas_ao_pipeline",
         "T65_integracao_skills_injecao_e_modelos",
         "T81_update_end_to_end_v3110_local",
         "T98_diagnostico_em_uma_chamada",
-        "T108_escopo_de_projeto_funcional",
-        "T109_pipeline_na_pasta_do_projeto",
         "T113_folego_para_tarefas_de_projeto",
-        "T116_delegacao_para_skill",
-        "T120_perguntar_caminho_do_projeto",
         "T121_mission_subtasks_sequenciais",
         "T124_provedores_externos_gratuitos",
         "T141_renome_betterme_migracao_e_identidade",
         "T142_telegram_token_allowlist_e_comandos",
-        "T151_arena_nao_escreve_no_disco",
         "T166_sem_binario_nao_quebra_e_orienta",
         "T172_fluxos_remover_tool_e_gui",
         "T174_boot_autostart_nos_tres_sos",
@@ -108,9 +100,6 @@ _NAO_PORTADOS: dict = {
         "T183_n8n_integracao_melhorada",
         "T188_nunca_mudo_e_dados_reais",
         "T192_omniroute_gateway_local",
-        "T197_escopo_sticky_sessao",
-        "T202_mencoes_arroba",
-        "T209_mencoes_x_d2_falso_positivo",
         "T213_financas_sumup_sync_mock",
         "T216_belvo_token_status_remover",
         "T236_renome_pluto_v83",
@@ -502,13 +491,36 @@ def T17_claude_modo_leve_e_fallback_de_cli_antiga():
 
     # CLI nova: --bare + diretiva PT + ferramentas essenciais + modelo do Pluto
     d = Path(tempfile.mkdtemp())
-    nova = d / "claude"
-    nova.write_text("#!/bin/bash\n"
-                    'if [[ "$1" == "--version" ]]; then echo "2.1.301 (Claude Code)"; exit 0; fi\n'
-                    'printf "%s\\n" "$@" > "' + str(d / "args.log") + '"\n'
-                    'if [[ "$*" != *"--bare"* ]]; then echo "ERRO: esperava --bare" >&2; exit 3; fi\n'
-                    'echo \'{"type":"result","subtype":"success","result":"resposta leve"}\'\n')
-    nova.chmod(0o755)
+    if _SO == "windows":
+        # ponte .cmd → python: escreve argv (1 por linha) e responde;
+        # a diretiva agora é single-line justamente por causa dos
+        # shims .cmd do npm (cmd.exe corta argv no 1º LF)
+        py = d / "claude_fake.py"
+        py.write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"LOG = Path({str(d / 'args.log')!r})\n"
+            "args = sys.argv[1:]\n"
+            "if args[:1] == ['--version']:\n"
+            "    print('2.1.301 (Claude Code)')\n"
+            "elif '--bare' not in args:\n"
+            "    sys.stderr.write('ERRO: esperava --bare')\n"
+            "    sys.exit(3)\n"
+            "else:\n"
+            "    LOG.write_text('\\n'.join(args), encoding='utf-8')\n"
+            "    print('{\"type\":\"result\",\"subtype\":\"success\","
+            "\"result\":\"resposta leve\"}')\n", encoding="utf-8")
+        nova = d / "claude.cmd"
+        nova.write_bytes(f'@echo off\r\n"{sys.executable}" "{py}" %*\r\n'
+                         .encode("utf-8"))
+    else:
+        nova = d / "claude"
+        nova.write_text("#!/bin/bash\n"
+                        'if [[ "$1" == "--version" ]]; then echo "2.1.301 (Claude Code)"; exit 0; fi\n'
+                        'printf "%s\\n" "$@" > "' + str(d / "args.log") + '"\n'
+                        'if [[ "$*" != *"--bare"* ]]; then echo "ERRO: esperava --bare" >&2; exit 3; fi\n'
+                        'echo \'{"type":"result","subtype":"success","result":"resposta leve"}\'\n')
+        nova.chmod(0o755)
     os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
     try:
         evs: list[dict] = []
@@ -523,13 +535,30 @@ def T17_claude_modo_leve_e_fallback_de_cli_antiga():
 
     # CLI antiga: rejeita --bare → fallback modo completo + aviso
     d2 = Path(tempfile.mkdtemp())
-    velha = d2 / "claude"
-    velha.write_text("#!/bin/bash\n"
-                     'if [[ "$1" == "--version" ]]; then echo "1.0.66 (Claude Code)"; exit 0; fi\n'
-                     'for a in "$@"; do if [[ "$a" == "--bare" ]]; then '
-                     'echo "error: unknown option \'--bare\'" >&2; exit 1; fi; done\n'
-                     'echo \'{"type":"result","subtype":"success","result":"modo completo"}\'\n')
-    velha.chmod(0o755)
+    if _SO == "windows":
+        py2 = d2 / "claude_fake.py"
+        py2.write_text(
+            "import sys\n"
+            "args = sys.argv[1:]\n"
+            "if args[:1] == ['--version']:\n"
+            "    print('1.0.66 (Claude Code)')\n"
+            "elif '--bare' in args:\n"
+            "    sys.stderr.write(\"error: unknown option '--bare'\")\n"
+            "    sys.exit(1)\n"
+            "else:\n"
+            "    print('{\"type\":\"result\",\"subtype\":\"success\","
+            "\"result\":\"modo completo\"}')\n", encoding="utf-8")
+        velha = d2 / "claude.cmd"
+        velha.write_bytes(f'@echo off\r\n"{sys.executable}" "{py2}" %*\r\n'
+                          .encode("utf-8"))
+    else:
+        velha = d2 / "claude"
+        velha.write_text("#!/bin/bash\n"
+                         'if [[ "$1" == "--version" ]]; then echo "1.0.66 (Claude Code)"; exit 0; fi\n'
+                         'for a in "$@"; do if [[ "$a" == "--bare" ]]; then '
+                         'echo "error: unknown option \'--bare\'" >&2; exit 1; fi; done\n'
+                         'echo \'{"type":"result","subtype":"success","result":"modo completo"}\'\n')
+        velha.chmod(0o755)
     os.environ["PATH"] = str(d2) + os.pathsep + os.environ.get("PATH", "")
     try:
         evs2: list[dict] = []
@@ -787,8 +816,10 @@ def T29_watch_valida_e_persiste_campos():
     r = c.post("/api/schedules", json={"input": "x", "when": "a cada 1h",
                                        "trigger": {"type": "watch", "path": "/nao/existe"}})
     assert r.status_code == 400
+    # dir temporário REAL do SO ("/tmp" não existe como dir no windows)
     r2 = c.post("/api/schedules", json={"input": "x", "when": "a cada 1h",
-                                        "trigger": {"type": "watch", "path": "/tmp",
+                                        "trigger": {"type": "watch",
+                                                    "path": tempfile.gettempdir(),
                                                     "glob": "*.pdf"},
                                         "retries": 2, "only_idle": True})
     assert r2.json["ok"]
@@ -1332,7 +1363,14 @@ def T41_secrets_protegidos_contra_o_agente():
         "imap_host": "127.0.0.1", "imap_port": 993, "imap_tls": "ssl",
         "smtp_ok": False}]})
     p = emailcfg.secrets_path(cfg)
-    assert oct(_stat.S_IMODE(p.stat().st_mode)) == "0o600"      # só o dono lê
+    if _SO == "windows":
+        # chmod 600 é no-op no Windows (st_mode reflete só o bit
+        # read-only) — a proteção efetiva lá é a ACL do perfil do
+        # usuário; a porta ACL dedicada está no backlog do release
+        # (CHECKLIST-PRE-RELEASE)
+        assert p.is_file(), p
+    else:
+        assert oct(_stat.S_IMODE(p.stat().st_mode)) == "0o600"  # só o dono lê
     # run_command tentando ler o arquivo → bloqueado com aviso claro
     r = execute_tool("run_command", {"command": f"cat {p}"}, cfg)
     assert not r["ok"] and "credenciais" in r["output"], r["output"][:150]
@@ -2934,7 +2972,9 @@ def T108_escopo_de_projeto_funcional():
                            {"path": "calc.js", "content": "console.log(5)"},
                            cfg)
             assert (proj / "calc.js").exists()       # escrita liberada lá
-            out = T.execute_tool("run_command", {"command": "pwd"}, cfg)
+            out = T.execute_tool("run_command",
+                                 {"command": "cd" if _SO == "windows" else "pwd"},
+                                 cfg)
             assert str(proj) in out.get("output", "")   # cwd = projeto
             lido = T.execute_tool("read_file", {"path": "calc.js"}, cfg)
             assert "console.log" in lido.get("output", "")
@@ -3280,7 +3320,8 @@ def T116_delegacao_para_skill():
             "sobremesa.\"\n---\n# Confeitaria\n\n## Verificação\n"
             "- A receita lista ingredientes com quantidades reais.\n"
             "- O tempo de forno aparece na resposta.\n", encoding="utf-8")
-        assert "confeitaria-artistica" in S.import_from(str(fonte), cfg)["importadas"]
+        imp = S.import_from(str(fonte), cfg)
+        assert "confeitaria-artistica" in imp["importadas"], imp
         capturado = {}
 
         class _Ag:
@@ -3303,11 +3344,13 @@ def T116_delegacao_para_skill():
                              [], on_event=lambda e: None)
         finally:
             orc.review = rev_orig
-        assert "MANUAL DA TAREFA" in capturado["prompt"]
-        assert "Confeitaria" in capturado["prompt"]
+        assert "MANUAL DA TAREFA" in capturado["prompt"], \
+            capturado["prompt"][:200]
+        assert "Confeitaria" in capturado["prompt"], \
+            capturado["prompt"][:200]
         crit = "\n".join(capturado["criterios"])
-        assert "[skill confeitaria-artistica]" in crit   # skill delega critérios
-        assert "tempo de forno" in crit
+        assert "[skill confeitaria-artistica]" in crit, crit   # skill delega
+        assert "tempo de forno" in crit, crit
 
 
 @case
@@ -5990,11 +6033,11 @@ def T151_arena_nao_escreve_no_disco():
     from pluto import arena
 
     cfg = fresh()
-    antes = {str(p.relative_to(cfg.data_dir))
+    antes = {p.relative_to(cfg.data_dir).as_posix()
              for p in cfg.data_dir.rglob("*") if p.is_file()}
     res = arena.rodar(cfg, "tarefa que não deve criar arquivo nenhum")
     assert res["ok"]
-    depois = {str(p.relative_to(cfg.data_dir))
+    depois = {p.relative_to(cfg.data_dir).as_posix()
               for p in cfg.data_dir.rglob("*") if p.is_file()}
     novos = depois - antes
     assert novos <= {"logs/agent.log", "logs/agent.log.1"}, sorted(novos)
