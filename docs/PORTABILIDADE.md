@@ -52,7 +52,9 @@ A prova de vida do T171 usa `plataforma.liveness` — nunca
 
 ### B. Caminhos POSIX / backslash — ✔ PORTADO (P0.1 · lote 3, 10/11/2026)
 **11 testes destravados:** ~~T17~~ · ~~T29~~ · ~~T41~~ · ~~T108~~ ·
-~~T109~~ · ~~T116~~ · ~~T120~~ · ~~T151~~ · ~~T197~~ · ~~T202~~ · ~~T209~~.
+~~T109~~ · ~~T116~~ · ~~T120~~ · ~~T151~~ · ~~T197~~ · ~~T202~~ · ~~T209~~
+(T116 fechou no 2º commit do lote — o diagnóstico adicionado na 1ª
+tentativa apontou o bug exato no log do CI).
 
 Causas reais (log do run 42340204729) e o que foi feito:
 
@@ -66,7 +68,7 @@ Causas reais (log do run 42340204729) e o que foi feito:
 | `"/tmp"` como dir de watch (T29) | `tempfile.gettempdir()` |
 | `pwd` (T108) | `cd` no Windows |
 | `str(relative_to())` com backslash (T151) | `.as_posix()` |
-| T116 | porta com diagnóstico em TODOS os asserts (causa será lida no log se persistir) |
+| T116 | 🐛 produto (achado no CI do lote 3): `read_skill_md` validava com `startswith(str(base) + "/")` — barra LITERAL; no Windows o separador é `\` → `PermissionError` engolida pelo `except` → **nenhuma skill virava MANUAL DA TAREFA** (delegação morta em silêncio). Corrigido com `Path.is_relative_to` |
 
 ### C. Prompts e fixtures com exemplo POSIX (2)
 | Teste | Evidência |

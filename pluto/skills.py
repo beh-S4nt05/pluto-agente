@@ -357,7 +357,11 @@ class SkillLoader:
     def read_skill_md(self, path: str) -> str:
         """Lê um SKILL.md validando que está dentro dos diretórios de skills."""
         p = Path(path).resolve()
-        if not any(str(p).startswith(str(base.resolve()) + "/") or p == base.resolve()
+        # P0.1 (lote 3, T116): is_relative_to em vez de startswith com
+        # "/" LITERAL — no Windows o separador é "\" e a validação
+        # antiga rejeitava TODO caminho (nenhuma skill virava MANUAL
+        # DA TAREFA: a delegação silenciosamente morria no except).
+        if not any(p.is_relative_to(base.resolve())
                    for base, _ in self.dirs):
             raise PermissionError("caminho fora dos diretórios de skills")
         if p.name != "SKILL.md" or not p.is_file():
