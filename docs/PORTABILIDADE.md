@@ -51,7 +51,11 @@ chamar via `[sys.executable, fake]`.
 | T121_mission_subtasks_sequenciais | idem no prompt do orquestrador |
 | T113_folego_para_tarefas_de_projeto | `'budget'` (formato de saída) |
 
-### D. Autostart / SO (4) — **defeito de produto a corrigir**
+### D. Autostart / SO (5) — **defeito de produto a corrigir**
+> P0.1 lote 1 acrescentou aqui: o `_SCOPE_DENY` é POSIX-cêntrico — no
+> Windows ele só bloqueia caminhos relativos à unidade do CWD
+> (`\tmp\x`), não `C:\tmp`/`D:\tmp` reais. Cobertura de diretórios
+> de sistema no Windows = dívida desta categoria.
 | Teste | Situação |
 |---|---|
 | T174_boot_autostart_nos_tres_sos | Windows usa Registro/Agendador, não systemd — boot deve instalar honestamente ou orientar |

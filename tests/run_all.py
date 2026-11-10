@@ -2895,12 +2895,18 @@ def T107_detectar_pasta_do_projeto():
     assert ok.name == "app"
     # P0.1 (macOS): symlink que APONTA para pasta de sistema — o
     # caminho RESOLVIDO também é negado (/etc → /private/etc no mac;
-    # aqui provado com um symlink da home apontando para /etc)
-    link = Path.home() / "pluto-t107-link"
-    try:
-        link.symlink_to("/etc")
-    except (OSError, NotImplementedError):
-        link = None            # sem privilégio p/ symlink (win): CI decide
+    # aqui provado com um symlink da home apontando para /etc).
+    # Só em POSIX: no Windows "/etc" resolve pela UNIDADE do CWD
+    # (C:\etc × D:\etc) e o _SCOPE_DENY é POSIX-cêntrico — a cobertura
+    # de diretórios de sistema do Windows é dívida declarada na
+    # PORTABILIDADE (categoria D).
+    link = None
+    if os.name == "posix":
+        link = Path.home() / "pluto-t107-link"
+        try:
+            link.symlink_to("/etc")
+        except (OSError, NotImplementedError):
+            link = None
     if link is not None:
         try:
             try:
