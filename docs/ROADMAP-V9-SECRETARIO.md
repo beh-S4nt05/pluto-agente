@@ -186,6 +186,15 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **M5 → T260**: `pluto gates --instalar-hook` grava o hook pré-push
   (varredura bloqueia o push ANTES de sair; hook alheio preservado).
 
+### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 1/≈5)
+- **Lote 1 ✔ (10/11)**: T107-mac — bug REAL de segurança corrigido
+  (deny nos dois planos: /etc→/private/etc não escapa) + prova de
+  symlink na suíte. Restam 38 (37 win · 4 mac).
+- Lotes seguintes: A-binários fake (T164/T165/T170/T171/T227 —
+  wrappers .cmd gerados pelo teste) · B-caminhos (≈10) · C-prompts
+  POSIX (3) · D-produto (T98/T174/T188) · E-guards (2) · F-update (3)
+  · G-triagem (11).
+
 ### P0.1 — Queimar a dívida de portabilidade (43 testes) · NOVO
 - `docs/PORTABILIDADE.md` lista cada teste com causa e prioridade;
   portar = corrigir + remover de `_NAO_PORTADOS` + CI revalida nos

@@ -70,11 +70,11 @@ T177_update_garante_comando_betterme · T178_instalacao_editavel_robusta.
 ### G. Demais (11) — triar na 1ª porta
 T55 · T65 · T124 · T141 · T142 · T172 · T183 · T192 · T213 · T216 · T236.
 
-## macOS — 5 testes
+## macOS — 4 testes (era 5 — T107 ✔ PORTADO na P0.1, 10/11/2026)
 
 | Teste | Causa | Tipo |
 |---|---|---|
-| **T107_detectar_pasta_do_projeto** | `/etc` é symlink → `/private/etc`: o caminho RESOLVIDO escapa do `_SCOPE_DENY` (tools.py L767) — **o deny precisa resolver o caminho antes de checar (bug real, relevante p/ segurança)** | 🐛 produto |
+| ~~T107_detectar_pasta_do_projeto~~ | **✔ CORRIGIDO (P0.1 · lote 1)**: o deny agora nega nos DOIS planos — caminho dado E resolvido, contra o deny literal E resolvido (`/etc`→`/private/etc` no mac; prova na suíte: symlink da home apontando para /etc é recusado em qualquer SO) | 🐛 produto ✔ |
 | **T174_boot_autostart_nos_tres_sos** | macOS usa launchd, não systemd — boot deve degradar honestamente | 🐛 produto |
 | **T98_diagnostico_em_uma_chamada** | Darwin não tem `free`; `top` é interativo (precisa `top -l 1`) | 🐛 produto |
 | T166_sem_binario_nao_quebra_e_orienta | orientação POSIX (brew existe, mas a mensagem/detecção difere) | triar |

@@ -933,19 +933,28 @@ def emit_event(e: dict) -> None:
 
 def validar_escopo_projeto(path, cfg=None) -> Path:
     """Valida (sem criar) a pasta de projeto declarada pelo operador."""
-    p = Path(path).expanduser()
-    if not p.is_absolute():
+    bruto = Path(path).expanduser()
+    if not bruto.is_absolute():
         raise ToolError(
             "caminho de projeto deve ser absoluto (ex.: /media/Arquivos/projetos "
             "/app ou ~/projetos/app)")
-    p = p.resolve()
+    p = bruto.resolve()
     if p == Path.home().resolve():
         raise ToolError(
             "escopo recusado: a HOME inteira não pode ser o workspace da task — "
             "aponte a pasta do projeto")
+    # P0.1 (T107-mac, bug real de segurança): no macOS /etc é SYMLINK
+    # → /private/etc — checar só o caminho RESOLVIDO deixava o literal
+    # escapar (e vice-versa). Nega nos DOIS planos: caminho dado E
+    # resolvido, contra o deny literal E resolvido.
+    alvos = {p, bruto}
     for sysdir in _SCOPE_DENY:
-        if p == Path(sysdir) or Path(sysdir) in p.parents:
-            raise ToolError(f"escopo recusado: {sysdir} é diretório do sistema")
+        sd = Path(sysdir)
+        for negado in {sd, sd.resolve()}:
+            for alvo in alvos:
+                if alvo == negado or negado in alvo.parents:
+                    raise ToolError(
+                        f"escopo recusado: {sysdir} é diretório do sistema")
     # P8.2 (T257, auditoria M4): pastas de CREDENCIAIS da home nunca
     # são escopo de projeto — dentro de um escopo a checagem sensível
     # era pulada (escrita confirmada na auditoria)

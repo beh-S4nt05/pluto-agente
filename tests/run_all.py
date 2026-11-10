@@ -122,7 +122,6 @@ _NAO_PORTADOS: dict = {
     },
     "macos": {
         "T98_diagnostico_em_uma_chamada",
-        "T107_detectar_pasta_do_projeto",
         "T166_sem_binario_nao_quebra_e_orienta",
         "T174_boot_autostart_nos_tres_sos",
         "T188_nunca_mudo_e_dados_reais",
@@ -2894,6 +2893,23 @@ def T107_detectar_pasta_do_projeto():
     # projeto DENTRO da home é legítimo (só a raiz home é negada)
     ok = validar_escopo_projeto(str(Path.home() / "projetos" / "app"), cfg)
     assert ok.name == "app"
+    # P0.1 (macOS): symlink que APONTA para pasta de sistema — o
+    # caminho RESOLVIDO também é negado (/etc → /private/etc no mac;
+    # aqui provado com um symlink da home apontando para /etc)
+    link = Path.home() / "pluto-t107-link"
+    try:
+        link.symlink_to("/etc")
+    except (OSError, NotImplementedError):
+        link = None            # sem privilégio p/ symlink (win): CI decide
+    if link is not None:
+        try:
+            try:
+                validar_escopo_projeto(str(link), cfg)
+                raise AssertionError("symlink para /etc foi aceito")
+            except ToolError:
+                pass
+        finally:
+            link.unlink(missing_ok=True)
 
 
 @case

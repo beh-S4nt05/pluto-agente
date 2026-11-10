@@ -233,8 +233,9 @@ A1 da auditoria SDD: antes a regra vivia só nesta spec.)
   `core.editor`/`alias.*`…) e `--output` (escrita fora do workspace)
   são BLOQUEADOS; config comum e diff normal seguem.
 - **RF-EXE-05** Comandos perigosos (raiz, formatar, desligar)
-  bloqueados por denylist (POLITICAS.md). **Dívida declarada**: T107 —
-  denylist não resolve symlink (prioridade 1 do P0.1).
+  bloqueados por denylist (POLITICAS.md). **T107 ✔ corrigido na P0.1**:
+  o `_SCOPE_DENY` nega nos dois planos (caminho dado E resolvido —
+  symlink de sistema não escapa mais).
 - **Verificação**: T251 · T131 · T188 · T107 (aberto).
 
 ### 5.3 Memória e camadas de contexto
