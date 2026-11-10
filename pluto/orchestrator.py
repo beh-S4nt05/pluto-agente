@@ -698,7 +698,8 @@ def pop_pending(cfg, tid: str) -> dict | None:
 
 
 def request_approval(tid: str, timeout: float = 300.0,
-                     check=None, cfg=None, meta: dict | None = None
+                     check=None, cfg=None, meta: dict | None = None,
+                     notify=None
                      ) -> tuple[str, dict | None]:
     """Bloqueia até o operador decidir (ou esgotar o tempo). Devolve
     (ação, edição): aprovar|editar|cancelar|refazer|entregar · None em
@@ -707,7 +708,14 @@ def request_approval(tid: str, timeout: float = 300.0,
     v3.11: com cfg+meta a pendência vai para o DISCO e sobrevive a
     restart — sai do arquivo só quando o operador DECIDE (aprovar/
     editar/cancelar/refazer/entregar). Timeout/cancelamento deixa o
-    registro: o operador ainda pode agir sobre ele depois."""
+    registro: o operador ainda pode agir sobre ele depois.
+
+    P0.1 (lote 3, corrida do T85 no CI): ``notify`` é chamado DEPOIS
+    de a pendência estar registrada na memória E no disco — o evento
+    approval_request só pode sair quando a pendência já é durable
+    (antes, o evento era emitido ANTES do request_approval e o
+    operador/GUI podia agir num instante em que o restart perderia a
+    pendência)."""
     evt = _threading.Event()
     with _AP_LOCK:
         _APPROVALS[tid] = {"event": evt, "action": None, "edit": None}
@@ -716,6 +724,11 @@ def request_approval(tid: str, timeout: float = 300.0,
             dados[tid] = {**meta, "id": tid,
                           "ts": time.strftime("%Y-%m-%d %H:%M:%S")}
             _pending_save(cfg, dados)
+    if notify is not None:
+        try:
+            notify()
+        except Exception:  # noqa: BLE001 — notificação é best-effort
+            pass
     decidiu = evt.wait(timeout) if check is None else False
     if check is not None:
         deadline = time.time() + timeout
@@ -1133,10 +1146,6 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
         plano_editado = bool(resume_plan.get("_editada"))
         exige_aprovacao = False
     if exige_aprovacao and not _cancelado():
-        ev({"type": "approval_request", "id": tid, "kind": "plano",
-            "objetivo": objetivo, "passos": passos,
-            "skills": [s["name"] for s in sks],
-            "msg": "🔒 tarefa de CRIAÇÃO — aprove o plano antes de executar"})
         act, edit = request_approval(
             tid, timeout=APPROVAL_TIMEOUT_S,
             check=lambda: cancel is not None and cancel.is_set(),
@@ -1144,7 +1153,13 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
             meta={"kind": "plano", "task_id": tid, "objetivo": objetivo,
                   "tipo": tipo, "passos": passos, "criterios": criterios,
                   "message": message, "session_id": session_id,
-                  "goal": goal})
+                  "goal": goal},
+            notify=lambda: ev(
+                {"type": "approval_request", "id": tid, "kind": "plano",
+                 "objetivo": objetivo, "passos": passos,
+                 "skills": [s["name"] for s in sks],
+                 "msg": "🔒 tarefa de CRIAÇÃO — aprove o plano antes de "
+                        "executar"}))
         if act in ("cancelar", "cancelado", "timeout"):
             motivo = ("cancelada pelo operador" if act == "cancelar"
                       else "cancelada (geração interrompida)" if act == "cancelado"
@@ -1466,9 +1481,6 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
             and veredito == "ok" and not _cancelado()
             and not pula_gate_entrega(cfg)):
         texto_entrega = (caixa["done"] or resultado) + selo
-        ev({"type": "approval_request", "id": f"{tid}-e", "kind": "entrega",
-            "texto": texto_entrega,
-            "msg": "📦 entrega final — revise, edite se quiser, e confirme"})
         act2, edit2 = request_approval(
             f"{tid}-e", timeout=APPROVAL_TIMEOUT_S,
             check=lambda: cancel is not None and cancel.is_set(),
@@ -1476,7 +1488,12 @@ def run_pipeline(agent, cfg, message: str, history: list[dict],
             meta={"kind": "entrega", "task_id": tid, "texto": texto_entrega,
                   "objetivo": objetivo, "tipo": tipo, "message": message,
                   "session_id": session_id, "goal": goal,
-                  "tentativas": execucoes})
+                  "tentativas": execucoes},
+            notify=lambda: ev(
+                {"type": "approval_request", "id": f"{tid}-e",
+                 "kind": "entrega", "texto": texto_entrega,
+                 "msg": "📦 entrega final — revise, edite se quiser, e "
+                        "confirme"}))
         if act2 == "editar" and edit2 and str(edit2.get("texto", "")).strip():
             texto = str(edit2["texto"]).rstrip()
             final = texto + "\n\n─\n✏️ *entrega editada pelo operador · 🔍 revisada antes*"

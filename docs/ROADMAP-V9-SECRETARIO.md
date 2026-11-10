@@ -206,8 +206,12 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
   `_SCOPE_DENY` sem entradas Windows (buraco aberto pelo novo ramo,
   fechado no mesmo commit), `read_skill_md` com barra literal na
   validação (no win NENHUMA skill virava MANUAL DA TAREFA — bug
-  apontado pelo diagnóstico do T116 no CI do próprio lote). Restam
-  22 (21 win · 4 mac).
+  apontado pelo diagnóstico do T116 no CI do próprio lote) e a
+  CORRIDA do T85 (2 flakes no CI): o evento approval_request era
+  emitido ANTES de a pendência ser gravada no disco — operador agindo
+  no instante do evento + restart perderia a pendência; agora o
+  evento sai só depois da pendência durable (notify no
+  request_approval). Restam 22 (21 win · 4 mac).
 - Lotes seguintes: C-prompts POSIX (2) · D-produto (T98/T174/T188) ·
   E-guards (2) · F-update (3) · G-triagem (11).
 

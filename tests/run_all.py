@@ -2137,6 +2137,11 @@ def T84_plano_pendente_retoma_pos_restart():
         assert "loadPending" in html and "pending-box" in html
     finally:
         orc.APPROVAL_TIMEOUT_S = antigo
+        # _RESUMED é estado de MÓDULO (não do cfg): sem limpar, a
+        # retomada daqui vira "fantasma" no /api/approvals/pending dos
+        # testes seguintes (poluiu o diagnóstico do T85 no CI)
+        from pluto.server.app import _RESUMED as _resumidos
+        _resumidos.pop(tid, None)
 
 
 @case
