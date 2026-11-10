@@ -20,22 +20,35 @@
 O runner tem um guarda: nome na lista que não existe mais na suíte
 **falha o pipeline** (dívida com nome de teste apagado = lista mentindo).
 
-## Windows — 38 testes
+## Windows — 33 testes (era 38 — grupo A ✔ PORTADO na P0.1 · lote 2)
 
 Causas confirmadas na 1ª execução (log do job), agrupadas:
 
-### A. Binários fake não executáveis — `WinError 193` (5)
-O Windows só executa PE (.exe/.cmd/.bat); os fakes da suíte são scripts.
-| Teste | Evidência |
-|---|---|
-| T164_multimodal_pipeline_com_binarios_fake | `ffmpeg falhou: [WinError 193] %1 is not a valid Win32 application` |
-| T165_transcricao_indexada_e_citada_no_rag | idem |
-| T171_fluxos_start_stop_com_n8n_fake | idem (n8n fake) |
-| T170_fluxos_node_check_e_setup_honesto | Node ausente + dica de instalação POSIX (apt/nvm) |
-| T227_procs_background | processos em background |
+### A. Binários fake não executáveis — ✔ PORTADO (P0.1 · lote 2, 10/11/2026)
+O Windows só executa PE (.exe/.cmd/.bat); os fakes da suíte eram
+scripts sh (`WinError 193`). **5 testes destravados:**
+~~T164~~ · ~~T165~~ · ~~T170~~ · ~~T171~~ · ~~T227~~.
 
-**Porta:** gerar `.cmd` wrapper no Windows (`@python fake.py %*`) ou
-chamar via `[sys.executable, fake]`.
+Fakes agora são gerados por SO (`_fixture_mm`, `_fixture_n8n_fake`,
+T170): no Windows viram `.cmd` — ponte para um script Python quando a
+saída importa (UTF-8 controlado), batch direto quando é ASCII
+(`@echo v24.1.0`), e `n8n.cmd` vivo via `ping` (o npm real também
+instala `n8n.cmd`, não o script sh).
+
+**Bugs de PRODUTO achados pela porta (todos corrigidos):**
+- `procs.start`: `start_new_session=True` fixo → `ValueError` no
+  Windows (agora `plataforma.popen_destacado_kwargs()`);
+- `procs.stop`: `os.killpg`/`os.getpgid` não existem no Windows
+  (`AttributeError` não capturado) → ramo Windows via `plataforma.matar`;
+- `plataforma.matar`: `taskkill /T` (árvore — filhos do wrapper
+  `.cmd` não ficam órfãos);
+- `fluxos.n8n_bin`: retorna `n8n.cmd` no Windows (shim real do npm);
+- `multimodal.transcrever`: UTF-8 explícito nos subprocess (o
+  whisper.cpp emite UTF-8 em todo SO; `text=True` sem encoding
+  decodava cp1252 no Windows → mojibake).
+
+A prova de vida do T171 usa `plataforma.liveness` — nunca
+`os.kill(pid, 0)`, que no Windows TERMINA o processo.
 
 ### B. Caminhos POSIX / backslash (≈10)
 | Teste | Evidência |
@@ -89,10 +102,10 @@ T98 · T166 · T174 · T188.
 
 ## Prioridade sugerida
 
-1. **T107 (macOS)** — bug de segurança do deny-list (produto);
-2. **T174 · T98** — defeitos de produto nos 2 SOs;
-3. Grupo A do Windows (WinError 193) — destrava 5 testes de uma vez;
-4. Grupo B/C — normalização de caminho e fixtures;
+1. ~~**T107 (macOS)**~~ ✔ lote 1 — bug de segurança do deny-list;
+2. ~~Grupo A do Windows~~ ✔ lote 2 — WinError 193 + 5 bugs de produto;
+3. Grupo B/C — normalização de caminho e fixtures;
+4. **T174 · T98** — defeitos de produto nos 2 SOs;
 5. O resto, queimando em ordem de overlap.
 
 *docs/PORTABILIDADE.md · V9.0.0 P0 · fonte: run 42340204729 (logs dos

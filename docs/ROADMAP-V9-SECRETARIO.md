@@ -186,14 +186,21 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **M5 → T260**: `pluto gates --instalar-hook` grava o hook pré-push
   (varredura bloqueia o push ANTES de sair; hook alheio preservado).
 
-### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 1/≈5)
+### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 2/≈5)
 - **Lote 1 ✔ (10/11)**: T107-mac — bug REAL de segurança corrigido
   (deny nos dois planos: /etc→/private/etc não escapa) + prova de
   symlink na suíte. Restam 38 (37 win · 4 mac).
-- Lotes seguintes: A-binários fake (T164/T165/T170/T171/T227 —
-  wrappers .cmd gerados pelo teste) · B-caminhos (≈10) · C-prompts
-  POSIX (3) · D-produto (T98/T174/T188) · E-guards (2) · F-update (3)
-  · G-triagem (11).
+- **Lote 2 ✔ (10/11)**: grupo A win (5) — T164/T165/T170/T171/T227
+  portados com fakes `.cmd` gerados por SO; a porta expôs **5 bugs
+  reais de produto** corrigidos no mesmo commit: `procs.start`
+  (`start_new_session` fixo → ValueError no win), `procs.stop`
+  (`killpg` inexistente → AttributeError), `plataforma.matar` sem
+  `/T` (órfãos), `fluxos.n8n_bin` sem o shim `n8n.cmd` do npm,
+  `multimodal` decodando cp1252 (whisper.cpp emite UTF-8). Restam
+  33 (32 win · 4 mac).
+- Lotes seguintes: B-caminhos (≈10) · C-prompts POSIX (3) ·
+  D-produto (T98/T174/T188) · E-guards (2) · F-update (3) ·
+  G-triagem (11).
 
 ### P0.1 — Queimar a dívida de portabilidade (43 testes) · NOVO
 - `docs/PORTABILIDADE.md` lista cada teste com causa e prioridade;

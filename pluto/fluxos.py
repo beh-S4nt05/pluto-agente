@@ -44,7 +44,10 @@ def _user_dir(cfg) -> Path:
 
 
 def n8n_bin(cfg) -> Path:
-    return _dir(cfg) / "node_modules" / ".bin" / "n8n"
+    # npm real instala shims: 'n8n' (sh) no Unix, 'n8n.cmd' no Windows
+    from . import plataforma
+    nome = "n8n.cmd" if plataforma.so() == "windows" else "n8n"
+    return _dir(cfg) / "node_modules" / ".bin" / nome
 
 
 def _pid_file(cfg) -> Path:

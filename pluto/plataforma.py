@@ -146,9 +146,13 @@ def liveness(pid: int | None) -> bool:
 
 
 def matar(pid: int, forcado: bool = False) -> bool:
-    """Desce um processo (SIGTERM→SIGKILL no Unix; taskkill no Windows)."""
+    """Desce um processo (SIGTERM→SIGKILL no Unix; taskkill no Windows).
+
+    No Windows usa ``/T`` (árvore): binários invocados via wrapper
+    ``.cmd`` (npm faz isso) têm filhos que sobreviveriam ao pai."""
     if so() == "windows":
-        argv = ["taskkill", "/PID", str(pid)] + (["/F"] if forcado else [])
+        argv = (["taskkill", "/T", "/PID", str(pid)]
+                + (["/F"] if forcado else []))
         try:
             r = subprocess.run(argv, capture_output=True, timeout=15)
             return r.returncode == 0

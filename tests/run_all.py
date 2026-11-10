@@ -100,11 +100,7 @@ _NAO_PORTADOS: dict = {
         "T141_renome_betterme_migracao_e_identidade",
         "T142_telegram_token_allowlist_e_comandos",
         "T151_arena_nao_escreve_no_disco",
-        "T164_multimodal_pipeline_com_binarios_fake",
-        "T165_transcricao_indexada_e_citada_no_rag",
         "T166_sem_binario_nao_quebra_e_orienta",
-        "T170_fluxos_node_check_e_setup_honesto",
-        "T171_fluxos_start_stop_com_n8n_fake",
         "T172_fluxos_remover_tool_e_gui",
         "T174_boot_autostart_nos_tres_sos",
         "T177_update_garante_comando_betterme",
@@ -117,7 +113,6 @@ _NAO_PORTADOS: dict = {
         "T209_mencoes_x_d2_falso_positivo",
         "T213_financas_sumup_sync_mock",
         "T216_belvo_token_status_remover",
-        "T227_procs_background",
         "T236_renome_pluto_v83",
     },
     "macos": {
@@ -6396,20 +6391,52 @@ def T163_cli_e_tool_revisar_diff():
 
 # ══════════════════════ v4.6.0 (PR#9) — MULTIMODAL LOCAL (E5) ══════════════════════
 
+def _fake_exe_py(d: Path, nome: str, corpo: str) -> Path:
+    """Fake executável cross-OS: no Windows, `.cmd` que delega ao python
+    (scripts sh não executam lá — WinError 193); no POSIX, script sh."""
+    if _SO == "windows":
+        py = d / f"{nome}_fake.py"
+        py.write_text(corpo, encoding="utf-8")
+        cmd = d / f"{nome}.cmd"
+        cmd.write_bytes(f'@echo off\r\n"{sys.executable}" "{py}" %*\r\n'
+                        .encode("utf-8"))
+        return cmd
+    f = d / nome
+    return f
+
+
 def _fixture_mm():
     """Binários FAKE (ffmpeg/whisper-cli) + mídia fake p/ T164-T166."""
     d = Path(tempfile.mkdtemp(prefix="mm-fix-"))
-    ff = d / "ffmpeg"
-    ff.write_text("#!/bin/sh\n"
-                  "for a in \"$@\"; do case \"$a\" in /*) touch \"$a\";; esac; done\n"
-                  "exit 0\n", encoding="utf-8")
-    wh = d / "whisper-cli"
-    wh.write_text("#!/bin/sh\n"
-                  "echo \"[00:00:00.000 --> 00:00:04.000]  olá este é um teste\"\n"
-                  "echo \"[00:00:04.000 --> 00:00:08.500]  de transcrição local do pluto\"\n",
-                  encoding="utf-8")
-    ff.chmod(0o755)
-    wh.chmod(0o755)
+    if _SO == "windows":
+        # ffmpeg fake: toca args que são caminhos absolutos (cria o .wav)
+        ff = _fake_exe_py(d, "ffmpeg",
+                          "import sys\n"
+                          "from pathlib import Path\n"
+                          "for a in sys.argv[1:]:\n"
+                          "    if Path(a).is_absolute():\n"
+                          "        Path(a).touch()\n")
+        # whisper fake: segmentos em UTF-8 BYTES (o produto decoda utf-8)
+        wh = _fake_exe_py(d, "whisper-cli",
+                          "import sys\n"
+                          "sys.stdout.buffer.write(\n"
+                          "    '[00:00:00.000 --> 00:00:04.000]  "
+                          "olá este é um teste\\n'\n"
+                          "    '[00:00:04.000 --> 00:00:08.500]  "
+                          "de transcrição local do pluto\\n'\n"
+                          "    .encode('utf-8'))\n")
+    else:
+        ff = d / "ffmpeg"
+        ff.write_text("#!/bin/sh\n"
+                      "for a in \"$@\"; do case \"$a\" in /*) touch \"$a\";; esac; done\n"
+                      "exit 0\n", encoding="utf-8")
+        wh = d / "whisper-cli"
+        wh.write_text("#!/bin/sh\n"
+                      "echo \"[00:00:00.000 --> 00:00:04.000]  olá este é um teste\"\n"
+                      "echo \"[00:00:04.000 --> 00:00:08.500]  de transcrição local do pluto\"\n",
+                      encoding="utf-8")
+        ff.chmod(0o755)
+        wh.chmod(0o755)
     midia = d / "reuniao.mp4"
     midia.write_bytes(b"FAKEVIDEOBYTES")
     return d, ff, wh, midia
@@ -6592,12 +6619,16 @@ def T169_curadoria_arquiva_antigos():
 # ══════════════════════ v5.1.0 (PR#11) — FLUXOS N8N LOCAIS ══════════════════════
 
 def _fixture_n8n_fake(cfg):
-    """Instala um binário n8n FAKE (sleep) no lugar certo do data-dir."""
+    """Instala um binário n8n FAKE (fica vivo ~60 s) no data-dir."""
     from pluto import fluxos
-    bin_ = fluxos.n8n_bin(cfg)
+    bin_ = fluxos.n8n_bin(cfg)          # n8n (sh) | n8n.cmd (windows)
     bin_.parent.mkdir(parents=True, exist_ok=True)
-    bin_.write_text("#!/bin/sh\nsleep 60\n", encoding="utf-8")
-    bin_.chmod(0o755)
+    if _SO == "windows":
+        bin_.write_bytes(b"@echo off\r\n"
+                         b"@ping -n 61 127.0.0.1 >nul\r\n")
+    else:
+        bin_.write_text("#!/bin/sh\nsleep 60\n", encoding="utf-8")
+        bin_.chmod(0o755)
     return bin_
 
 
@@ -6608,9 +6639,13 @@ def T170_fluxos_node_check_e_setup_honesto():
     d = Path(tempfile.mkdtemp(prefix="n8n-fix-"))
     fakes = {}
     for nome, saida in (("node24", "v24.1.0\n"), ("node16", "v16.20.2\n")):
-        f = d / nome
-        f.write_text(f"#!/bin/sh\necho '{saida}'\n", encoding="utf-8")
-        f.chmod(0o755)
+        if _SO == "windows":
+            f = d / f"{nome}.cmd"
+            f.write_bytes(f"@echo {saida}".encode("ascii"))
+        else:
+            f = d / nome
+            f.write_text(f"#!/bin/sh\necho '{saida}'\n", encoding="utf-8")
+            f.chmod(0o755)
         fakes[nome] = str(f)
     from pluto import fluxos
 
@@ -6646,8 +6681,7 @@ def T170_fluxos_node_check_e_setup_honesto():
 def T171_fluxos_start_stop_com_n8n_fake():
     """v5.1.0 (PR#11): start sobe o processo com telemetria OFF e pid
     file; stop desce limpo; start sem instalar → orientação honesta."""
-    import os as _os
-    from pluto import fluxos
+    from pluto import fluxos, plataforma
 
     cfg = fresh()
     r0 = fluxos.start(cfg)
@@ -6657,7 +6691,9 @@ def T171_fluxos_start_stop_com_n8n_fake():
     assert r["ok"] and r["pid"], r
     pid = int((fluxos._pid_file(cfg)).read_text(encoding="utf-8"))
     assert pid == r["pid"]
-    _os.kill(pid, 0)                       # processo vivo
+    # liveness via plataforma: os.kill(pid, 0) no Windows TERMINA o
+    # processo (TerminateProcess) — nunca testar vida assim lá
+    assert plataforma.liveness(pid), "processo devia estar vivo"
     assert fluxos.rodando(cfg) is True
     st = fluxos.status(cfg)
     assert st["n8n_instalado"] and st["rodando"] and st["porta"] == 5678
@@ -6672,11 +6708,7 @@ def T171_fluxos_start_stop_com_n8n_fake():
     assert r2["ok"] and "parado" in r2["msg"]
     assert fluxos.rodando(cfg) is False
     assert not fluxos._pid_file(cfg).exists()
-    try:
-        _os.kill(pid, 0)
-        raise AssertionError("processo ainda vivo após stop")
-    except (ProcessLookupError, PermissionError):
-        pass
+    assert not plataforma.liveness(pid), "processo ainda vivo após stop"
 
 
 @case
@@ -6756,7 +6788,9 @@ def T173_plataforma_deteccao_liveness_e_hints():
     P.subprocess.run = lambda argv, **kw2: (capturado.append(argv) or _R())
     try:
         assert P.matar(4242, forcado=True) is True
-        assert capturado[0] == ["taskkill", "/PID", "4242", "/F"], capturado
+        # /T = árvore: wrappers .cmd (npm) deixam filhos vivos sem isso
+        assert capturado[0] == ["taskkill", "/T", "/PID", "4242", "/F"], \
+            capturado
         assert P.shell_argv("echo x") == ["cmd", "/c", "echo x"]
         assert "winget" in P.hint("ffmpeg")
         assert "ollama.com" in P.hint("ollama")
@@ -9649,6 +9683,17 @@ def T227_procs_background():
 
     for n in ("proc_start", "proc_logs", "proc_stop"):
         assert n in TOOL_NAMES, n
+    # comandos de shell do SO corrente (a suíte roda cmd.exe no win)
+    if _SO == "windows":
+        loop_cmd = ("for /l %i in (1,1,100) do "
+                    "@(echo tick %i& ping -n 2 127.0.0.1 >nul)")
+        dorme = "ping -n 31 127.0.0.1 >nul"
+        morre_ja = "exit 0"
+    else:
+        loop_cmd = ("for i in $(seq 1 100); do echo tick $i; "
+                    "sleep 0.05; done")
+        dorme = "sleep 30"
+        morre_ja = "true"
     cfg = fresh()
     try:
         r = procs.start(cfg, "tico", "rm -rf /")
@@ -9658,9 +9703,7 @@ def T227_procs_background():
         r = procs.start(cfg, "bad name!", "echo oi")
         assert "nome inválido" in r["erro"]
 
-        r = procs.start(cfg, "loop",
-                        "for i in $(seq 1 100); do echo tick $i; "
-                        "sleep 0.05; done")
+        r = procs.start(cfg, "loop", loop_cmd)
         assert r.get("ok"), r
         _t.sleep(0.6)
         lg = procs.logs("loop", tail=10)
@@ -9674,15 +9717,15 @@ def T227_procs_background():
 
         # teto de 5
         for i in range(4):
-            procs.start(cfg, f"extra{i}", "sleep 30")
-        r3 = procs.start(cfg, "extra4", "sleep 30")
+            procs.start(cfg, f"extra{i}", dorme)
+        r3 = procs.start(cfg, "extra4", dorme)
         assert "limite de 5" in r3["erro"], r3
 
         # stop derruba
         st = procs.stop("loop")
         assert st.get("ok") and not st.get("ja_morto"), st
         # já morto
-        procs.start(cfg, "curto", "true")
+        procs.start(cfg, "curto", morre_ja)
         _t.sleep(0.3)
         st2 = procs.stop("curto")
         assert st2.get("ok") and st2.get("ja_morto"), st2

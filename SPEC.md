@@ -410,8 +410,9 @@ projetos/rpg/
   com veredito JSON validado).
 - **RF-INF-03** Portabilidade (`docs/PORTABILIDADE.md`): matriz de
   dívida declarada — `_NAO_PORTADOS` por SO, visível na suíte
-  (⏭ pulados listados). **Dívida atual: 38 (windows) · 5 (macos) —
-  alvo do P0.1.**
+  (⏭ pulados listados). **Dívida atual: 33 (windows) · 4 (macos) —
+  queimando no P0.1 (lote 1: T107/deny; lote 2: grupo A + 5 bugs
+  de produto).**
 - **RF-INF-04** Autostart reversível (systemd user · LaunchAgent ·
   .bat), update em 1 comando, doctor, backups, heartbeat.
 - **RF-INF-05** Grafo de código (v4.4.0): AST puro → SQLite; "onde

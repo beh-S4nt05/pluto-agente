@@ -70,7 +70,8 @@ def transcrever(cfg, caminho, ffmpeg_bin: str | None = None,
         r = subprocess.run(
             [ffmpeg, "-y", "-i", str(src), "-ac", "1", "-ar",
              "16000", "-vn", str(wav)],
-            capture_output=True, text=True, timeout=600)
+            capture_output=True, text=True, timeout=600,
+            encoding="utf-8", errors="replace")
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "msg": f"ffmpeg falhou: {exc}"}
     if r.returncode != 0 or not wav.is_file():
@@ -81,7 +82,8 @@ def transcrever(cfg, caminho, ffmpeg_bin: str | None = None,
         w = subprocess.run(
             [whisper, "-m", str(modelo_path(cfg, modelo)),
              "-f", str(wav)],
-            capture_output=True, text=True, timeout=1800)
+            capture_output=True, text=True, timeout=1800,
+            encoding="utf-8", errors="replace")
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "msg": f"whisper falhou: {exc}"}
     segmentos = [(ini, fim, txt.strip())

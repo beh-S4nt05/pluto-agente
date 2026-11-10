@@ -10,7 +10,8 @@ trio completo (start/logs/stop), no padrão do projeto:
 - teto de 5 processos simultâneos por agente;
 - log em memória (deque, 400 linhas) E em arquivo
   `<data_dir>/procs/<nome>.log` — nada se perde;
-- processos em sessão própria (killpg derruba filhos também);
+- processos destacados do pai (Unix: sessão própria, killpg derruba
+  filhos também; Windows: grupo novo + taskkill /T em árvore);
 - atexit: nada sobrevive ao app morrer.
 """
 from __future__ import annotations
@@ -87,11 +88,12 @@ def start(cfg, nome: str, command: str, cwd: str = "") -> dict:
                             f"({', '.join(vivos)}) — pare um antes"}
     try:
         _log_dir(cfg).mkdir(parents=True, exist_ok=True)
+        from . import plataforma
         p = subprocess.Popen(
             command, shell=True,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            cwd=(cwd or None), start_new_session=True,
-            text=False)
+            cwd=(cwd or None), text=False,
+            **plataforma.popen_destacado_kwargs())
     except OSError as exc:
         return {"erro": f"falha ao iniciar: {exc}"}
     with _LOCK:
@@ -128,17 +130,27 @@ def stop(nome: str) -> dict:
         with _LOCK:
             _PROCS.pop(nome, None)
         return {"ok": True, "ja_morto": True, "exit": p.returncode}
+    # Unix: killpg no GRUPO da sessão própria (derruba filhos também);
+    # Windows: killpg/getpgid não existem — taskkill /T via plataforma.
+    from . import plataforma
+    _win = plataforma.so() == "windows"
     try:
-        import os
-        os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        if _win:
+            plataforma.matar(p.pid)
+        else:
+            import os
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
     except (ProcessLookupError, PermissionError, OSError):
         p.terminate()
     try:
         p.wait(timeout=8)
     except subprocess.TimeoutExpired:
         try:
-            import os
-            os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+            if _win:
+                plataforma.matar(p.pid, forcado=True)
+            else:
+                import os
+                os.killpg(os.getpgid(p.pid), signal.SIGKILL)
         except OSError:
             p.kill()
         p.wait(timeout=5)
