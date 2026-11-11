@@ -282,6 +282,9 @@ _DIAG_MAC = [
     ("disco", "df -h / | tail -1", 5),
     ("uso de CPU agora", "top -l 1 -n 0 2>/dev/null | head -8", 8),
     ("memória", "vm_stat | head -4", 4),
+    # P0.1 (lote 4): seções canônicas do digesto em TODOS os SOs (o
+    # executor confia nos mesmos nomes de seção em qualquer máquina)
+    ("top RAM", "ps aux -m | head -7", 5),
     ("bateria", "pmset -g batt", 4),
     ("uptime e carga", "uptime", 3),
 ]
@@ -320,6 +323,16 @@ _DIAG_WIN = [
      'powershell -NoProfile -Command "Get-PSDrive C | ForEach-Object { '
      "'C: livre ' + [string]([math]::Round($_.Free/1GB,1)) + ' GB' }\"",
      8),
+    # P0.1 (lote 4): seções canônicas do digesto em TODOS os SOs
+    ("top RAM",
+     'powershell -NoProfile -Command "Get-Process | Sort-Object WS '
+     '-Descending | Select-Object -First 7 Name,'
+     "@{n='RAM_MB';e={[math]::Round($_.WS/1MB)}} | Format-Table "
+     '-AutoSize"', 10),
+    ("uptime e carga",
+     'powershell -NoProfile -Command "Get-CimInstance '
+     'Win32_OperatingSystem | Select-Object LastBootUpTime,'
+     'LoadPercentage | Format-List"', 10),
 ]
 
 

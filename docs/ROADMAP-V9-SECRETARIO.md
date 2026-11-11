@@ -186,7 +186,7 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **M5 → T260**: `pluto gates --instalar-hook` grava o hook pré-push
   (varredura bloqueia o push ANTES de sair; hook alheio preservado).
 
-### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 3/≈5)
+### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 4/≈5)
 - **Lote 1 ✔ (10/11)**: T107-mac — bug REAL de segurança corrigido
   (deny nos dois planos: /etc→/private/etc não escapa) + prova de
   symlink na suíte. Restam 38 (37 win · 4 mac).
@@ -212,8 +212,15 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
   no instante do evento + restart perderia a pendência; agora o
   evento sai só depois da pendência durable (notify no
   request_approval). Restam 22 (21 win · 4 mac).
-- Lotes seguintes: C-prompts POSIX (2) · D-produto (T98/T174/T188) ·
-  E-guards (2) · F-update (3) · G-triagem (11).
+- **Lote 4 ✔ (10/11)**: C+D (6 win + os 4 mac) — **dívida do macOS
+  ZERADA** (suíte roda 261/261 lá). T113/T121 já estavam destravados
+  pelo `_PROJETO_RE` do lote 3 (só saíram da lista); T98 fechou com
+  produto: seções canônicas do digesto (`top RAM`, `uptime e carga`)
+  agora existem nos 3 SOs (`_DIAG_WIN` powershell p/ T173, `_DIAG_MAC`
+  ps aux -m); T166/T174/T188 viraram testes OS-aware (hint apt/brew/
+  winget, fluxo real systemd/launchd/.bat com HOME falso, marcador de
+  CPU por SO). Restam 16 no win: E (2) · F (3) · G (11).
+- Lotes seguintes: E-guards (2) · F-update (3) · G-triagem (11).
 
 ### P0.1 — Queimar a dívida de portabilidade (43 testes) · NOVO
 - `docs/PORTABILIDADE.md` lista cada teste com causa e prioridade;

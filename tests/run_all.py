@@ -86,30 +86,19 @@ _NAO_PORTADOS: dict = {
         "T55_skills_aplicadas_ao_pipeline",
         "T65_integracao_skills_injecao_e_modelos",
         "T81_update_end_to_end_v3110_local",
-        "T98_diagnostico_em_uma_chamada",
-        "T113_folego_para_tarefas_de_projeto",
-        "T121_mission_subtasks_sequenciais",
         "T124_provedores_externos_gratuitos",
         "T141_renome_betterme_migracao_e_identidade",
         "T142_telegram_token_allowlist_e_comandos",
-        "T166_sem_binario_nao_quebra_e_orienta",
         "T172_fluxos_remover_tool_e_gui",
-        "T174_boot_autostart_nos_tres_sos",
         "T177_update_garante_comando_betterme",
         "T178_instalacao_editavel_robusta",
         "T183_n8n_integracao_melhorada",
-        "T188_nunca_mudo_e_dados_reais",
         "T192_omniroute_gateway_local",
         "T213_financas_sumup_sync_mock",
         "T216_belvo_token_status_remover",
         "T236_renome_pluto_v83",
     },
-    "macos": {
-        "T98_diagnostico_em_uma_chamada",
-        "T166_sem_binario_nao_quebra_e_orienta",
-        "T174_boot_autostart_nos_tres_sos",
-        "T188_nunca_mudo_e_dados_reais",
-    },
+    "macos": set(),          # P0.1 lote 4: dívida macOS ZERO
 }
 SKIPPED: list = []
 
@@ -6546,7 +6535,10 @@ def T166_sem_binario_nao_quebra_e_orienta():
     r2 = multimodal.transcrever(cfg, midia, ffmpeg_bin=str(ff),
                                 whisper_bin="/nao/existe")
     assert r2["ok"] is False and "whisper" in r2["msg"], r2
-    assert "apt install" in r1["msg"] and "whisper.cpp" in r2["msg"]
+    # orientação de instalação do SO corrente (hint do plataforma)
+    gestor = {"linux": "apt install", "macos": "brew install",
+              "windows": "winget install"}[_SO]
+    assert gestor in r1["msg"] and "whisper.cpp" in r2["msg"]
     r3 = multimodal.transcrever(cfg, d / "nao_existe.mp4",
                                 ffmpeg_bin=str(ff), whisper_bin=str(wh))
     assert r3["ok"] is False and "não encontrado" in r3["msg"], r3
@@ -6877,7 +6869,8 @@ def T174_boot_autostart_nos_tres_sos():
     assert m["arquivo"].name == "com.pluto.agent.plist"
     assert "<plist" in m["conteudo"] and "<true/>" in m["conteudo"]
     assert m["habilitar"][:2] == ["launchctl", "load"]
-    # fluxo REAL do Linux com HOME falso + systemctl falso
+    # fluxo REAL do SO corrente com HOME falso + subprocess falso
+    # (linux: systemd user · macos: launchd · windows: .bat na Inicialização)
     cfg = fresh()
     fake_home = Path(tempfile.mkdtemp(prefix="boot-home-"))
     cmds = []
@@ -6885,22 +6878,36 @@ def T174_boot_autostart_nos_tres_sos():
     class _R:
         returncode = 0
 
+    if _SO == "linux":
+        alvo = (fake_home / ".config" / "systemd" / "user"
+                / "pluto-agent.service")
+        primeiro = ["systemctl", "--user", "enable"]
+        ultimo = ["systemctl", "--user", "disable"]
+    elif _SO == "macos":
+        alvo = (fake_home / "Library" / "LaunchAgents"
+                / "com.pluto.agent.plist")
+        primeiro = ["launchctl", "load"]
+        ultimo = ["launchctl", "unload"]
+    else:
+        alvo = (fake_home / "AppData" / "Roaming" / "Microsoft" / "Windows"
+                / "Start Menu" / "Programs" / "Startup"
+                / "pluto-agent.bat")
+        primeiro = ultimo = None            # .bat não precisa de comando
     with mock.patch.object(Path, "home", return_value=fake_home), \
             mock.patch.object(boot.subprocess, "run",
                               lambda c, **kw: (cmds.append(c) or _R())):
         r = boot.on(cfg)
         assert r["ok"], r
-        unit = fake_home / ".config" / "systemd" / "user" \
-            / "pluto-agent.service"
-        conteudo = unit.read_text(encoding="utf-8")
-        assert "ExecStart=" in conteudo and "pluto daemon" in conteudo
-        assert "WantedBy=default.target" in conteudo
-        assert cmds and cmds[0][:3] == ["systemctl", "--user", "enable"]
+        conteudo = alvo.read_text(encoding="utf-8")
+        assert "pluto" in conteudo and "daemon" in conteudo, conteudo[:80]
+        if primeiro is not None:
+            assert cmds and cmds[0][:len(primeiro)] == primeiro, cmds
         st = boot.status(cfg)
-        assert st["registrado"] is True and st["so"] == "linux"
+        assert st["registrado"] is True and st["so"] == _SO
         r2 = boot.off(cfg)
-        assert r2["ok"] and not unit.exists()
-        assert cmds[-1][:3] == ["systemctl", "--user", "disable"]
+        assert r2["ok"] and not alvo.exists()
+        if ultimo is not None:
+            assert cmds[-1][:len(ultimo)] == ultimo, cmds
         assert boot.status(cfg)["registrado"] is False
         # off sem registro não quebra
         assert boot.off(cfg)["ok"]
@@ -7657,7 +7664,14 @@ def T188_nunca_mudo_e_dados_reais():
     # ── (b2) a tool roda DE VERDADE e traz a seção de CPU com dado real
     out = diagnostico_sistema({}, None)
     assert "== CPU" in out and "== disco ==" in out and "== memória ==" in out
-    assert "Model name" in out or "CPU(s)" in out or "(lscpu" in out
+    # marcador de CPU real POR SO (lscpu no linux, sysctl no mac,
+    # Get-CimInstance no windows)
+    marcadores = {
+        "linux": ("Model name", "CPU(s)", "(lscpu"),
+        "macos": ("brand_string", "hw.physicalcpu", "hw.memsize"),
+        "windows": ("NumberOfCores", "LogicalProcessors", "MaxClockSpeed"),
+    }
+    assert any(m in out for m in marcadores[_SO]), (_SO, out[:300])
     # ── (c) regra anti-invenção no prompt do agente
     src_agent = Path("pluto/agent.py").read_text(encoding="utf-8")
     assert "NUNCA escreva valores" in src_agent
