@@ -6543,9 +6543,20 @@ def T166_sem_binario_nao_quebra_e_orienta():
                                 ffmpeg_bin=str(ff), whisper_bin=str(wh))
     assert r3["ok"] is False and "não encontrado" in r3["msg"], r3
     # whisper que não devolve segmentos → erro honesto com pista do modelo
-    wh_mudo = d / "whisper-mudo"
-    wh_mudo.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    wh_mudo.chmod(0o755)
+    # (bridge python nos dois SOs: roda, sai 0 e não imprime NADA)
+    py_mudo = d / "whisper_mudo.py"
+    py_mudo.write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+    if _SO == "windows":
+        wh_mudo = d / "whisper-mudo.cmd"
+        wh_mudo.write_bytes(
+            f'@echo off\r\n"{sys.executable}" "{py_mudo}" %*\r\n'
+            .encode("utf-8"))
+    else:
+        wh_mudo = d / "whisper-mudo"
+        wh_mudo.write_text(
+            f'#!/bin/sh\nexec "{sys.executable}" "{py_mudo}" "$@"\n',
+            encoding="utf-8")
+        wh_mudo.chmod(0o755)
     r4 = multimodal.transcrever(cfg, midia, ffmpeg_bin=str(ff),
                                 whisper_bin=str(wh_mudo))
     assert r4["ok"] is False and "segmentos" in r4["msg"], r4
