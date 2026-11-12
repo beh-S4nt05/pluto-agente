@@ -1,6 +1,6 @@
 # 📘 Pluto Agente — Documentação viva: uso, evolução e funções
 
-**Versão 8.6.0** · gerado em 07/11/2026 · este documento é extraído do
+**Versão 9.0.0** · gerado em 12/11/2026 · este documento é extraído do
 código-fonte (parser AST) e do CHANGELOG — funções, endpoints e versões
 refletem exatamente o que está instalado. O histórico detalhado, versão a
 versão, está no `CHANGELOG.md`; o manual completo de operação no `docs.md`.
@@ -97,8 +97,11 @@ sobrevivem a restart (v3.11). Máximo 2 tentativas automáticas.
 | `pluto guia` | onde conseguir cada chave grátis |
 | `pluto off` | volta ao Ollama local |
 | `pluto varredura` | varre segredos/dados pessoais antes de expor código (pré-push) |
+| `pluto gates` | portões de qualidade em 1 comando (ruff → suíte →  |
 | `pluto init` | cria HERMES.md (instruções duráveis do projeto) |
 | `pluto autonomia` | nível de autonomia do agente ( |
+| `pluto capacidades` | perfil e portões do cérebro ativo (Princípio 0:  |
+| `pluto secretario` | 🤵 secretário proativo: briefing diário no  |
 | `pluto gerente` | gerente de código (Claude Code) — opt-in consciente |
 | `pluto telegram` | canal Telegram: controle e aprovação pelo celular |
 | `pluto whatsapp` | canal WhatsApp via Playwright — grátis, local, removível |
@@ -140,14 +143,15 @@ sobrevivem a restart (v3.11). Máximo 2 tentativas automáticas.
 Subcomandos: `pluto skills audit` (auditar o catálogo), `pluto config set/get`, `pluto server --host/--port/--token`.
 
 
-## 3. Modificações — o que foi feito (v1.0.0 → v8.6.0)
+## 3. Modificações — o que foi feito (v1.0.0 → v9.0.0)
 
-40 releases. Tabela extraída do CHANGELOG (a versão detalhada de cada
+107 releases. Tabela extraída do CHANGELOG (a versão detalhada de cada
 uma está lá):
 
 | Versão | Marca |
 |---|---|
 
+| **v9.0.0** | 🤵 O SECRETÁRIO (release 12/11/2026) |
 | **v8.6.0** | 🧩 MCP: PARIDADE GENKIT (SSE + RECURSOS + PROMPTS) |
 | **v8.5.0** | 🔌 CONTAS: VINCULAÇÕES EXTERNAS NUM LUGAR SÓ |
 | **v8.4.0** | 💰 GESTOR DE FINANÇAS COMPLETO (ABA NA GUI) |
@@ -370,7 +374,7 @@ pluto server (Flask/waitress, porta 8080) ── CLI `pluto …`
 | `list_pending(cfg)` | v3.11: pendências que sobreviveram a um restart (🔒/📦). |
 | `peek_pending(cfg, tid)` | — |
 | `pop_pending(cfg, tid)` | — |
-| `request_approval(tid, timeout, check, cfg, meta)` | Bloqueia até o operador decidir (ou esgotar o tempo). Devolve (ação, edição): aprovar\|editar\|cancelar\|refazer\|entregar … |
+| `request_approval(tid, timeout, check, cfg, meta, notify)` | Bloqueia até o operador decidir (ou esgotar o tempo). Devolve (ação, edição): aprovar\|editar\|cancelar\|refazer\|entregar … |
 | `approve(tid, action, edit)` | Registra a decisão do operador (chamado pelo endpoint da GUI). |
 | `set_prazo(session_id, minutos)` | — |
 | `prazo_restante(session_id)` | Segundos restantes do prazo da sessão (0 = sem prazo). |
@@ -549,6 +553,9 @@ pluto server (Flask/waitress, porta 8080) ── CLI `pluto …`
 | `cmd_dossie(args)` | v6.8.0: mostra o dossiê de uma task — plano, evidência, entrega. |
 | `cmd_provider(args)` | v3.17.0: provedores LLM externos GRATUITOS (memória nunca sai). |
 | `cmd_varredura(args)` | v4.0.0: varre segredos/dados pessoais — 1 se houver crítico. |
+| `cmd_capacidades(args)` | V9.0.0 (P7 · T249): perfil e portões do cérebro ATIVO — o Princípio 0 tornado visível (o modelo é a base, não o limitad… |
+| `cmd_secretario(args)` | V9.0.0 (P4 · T247–T248): o secretário proativo — briefing diário, lembretes e triagem de e-mail (tudo opt-in no config). |
+| `cmd_gates(args)` | V9.0.0 (T242): os portões de qualidade em 1 comando — ruff → suíte → varredura. Espelho EXATO do pipeline do GitHub Act… |
 | `cmd_init(args)` | v4.0.0: cria HERMES.md de partida no projeto. |
 | `cmd_autonomia(args)` | v4.0.0: vê/muda o nível de autonomia (cauteloso\|padrao\|autonomo). |
 | `cmd_gerente(args)` | v4.0.0 (M7, D5): gerente de código (Claude) — opt-in consciente. |
@@ -556,6 +563,8 @@ pluto server (Flask/waitress, porta 8080) ── CLI `pluto …`
 | `cmd_whatsapp(args)` | v4.2.0 (PR#5): canal WhatsApp via Playwright (local, removível). |
 | `cmd_arena(args)` | v4.3.0 (PR#6): arena — mesma task nos provedores grátis, ranking medido. |
 | `cmd_grafo(args)` | v4.4.0 (PR#7): grafo de código (onde está a lógica de X?). |
+| `_hook_pre_push(instalar)` | P8.2 (T260, auditoria M5): instala/remove o hook pré-push do git no repo do diretório atual — a varredura roda ANTES do… |
+| `cmd_projeto(args)` | v9.0.0 (P8): projetos como nodes (conversas/contexto/artefatos). |
 | `cmd_revisar(args)` | v4.5.0 (PR#8): revisão de diff — gate único pré-push. |
 | `cmd_multimodal(args)` | v4.6.0 (PR#9): transcrição local de áudio/vídeo (→ RAG). |
 | `cmd_vida(args)` | v5.0.0 (PR#10): Modo Vida — relatório diário + curadoria. |
@@ -624,6 +633,10 @@ pluto server (Flask/waitress, porta 8080) ── CLI `pluto …`
 | `notebook_buscar(args, cfg)` | — |
 | `mcp_recurso(args, cfg)` | v8.6.0: recursos MCP — lista (sem uri) ou lê (com uri). |
 | `mcp_prompt(args, cfg)` | v8.6.0: prompts MCP — lista (sem nome) ou obtém (com nome). |
+| `autoavaliar(args, cfg)` | v9.0.0 (P3): confere a entrega contra o pedido — quadro auditável. |
+| `tarefa_checkpoint(args, cfg)` | v9.0.0 (P1): checkpoint de contexto durável + diário de trabalho. |
+| `verificar_resposta(args, cfg)` | v9.0.0 (P2): 2ª passada — afirmações vs. dados das ferramentas. |
+| `projeto_tool(args, cfg)` | v9.0.0 (P8): projetos como nodes — conversas, contexto e artefatos juntos por projeto (pluto/projetos.py). |
 | `agenda_criar(args, cfg)` | v8.5.0: cria evento no Google Calendar (conta vinculada). |
 | `execute_tool(name, arguments, cfg, source, agent)` | Executa uma ferramenta e devolve {'ok': bool, 'output': str}. v3.0: toda execução vai para a trilha de auditoria (data/… |
 | `tool_summary()` | — |
@@ -668,7 +681,8 @@ pluto server (Flask/waitress, porta 8080) ── CLI `pluto …`
 
 | Função | O que faz |
 |---|---|
-| `_parse_version(tag)` | 'v3.10.0' → (3,10,0); tags com sufixo (-beta, -rc) ficam (0,). |
+| `_parse_version(tag)` | 'v3.10.0' → (3,10,0); tags malformadas ficam (0,). P8.3: sufixos (-dev/-rc/-beta) são DESCARTADOS por parte — '9.0.0-de… |
+| `_estavel(tag)` | Tag ESTÁVEL: estritamente vX.Y.Z, SEM sufixo (-beta/-rc/-dev). P8.3: antes o filtro de estabilidade era implícito (sufi… |
 | `latest_tag(fetch)` | Última tag do repositório (None se não conseguir consultar). `fetch(url) -> str` injetável para testes offline. |
 | `_project_root()` | Raiz da instalação (pasta que contém pluto/ e pyproject.toml). |
 | `_assert_zip_seguro(zf, dest_dir)` | v3.14.2: defesa zip-slip — nenhum membro do zip pode escapar do diretório de destino (caminho absoluto ou com '..' é re… |
@@ -1020,6 +1034,7 @@ pluto server (Flask/waitress, porta 8080) ── CLI `pluto …`
 | `criar_evento(cfg, account, titulo, inicio, fim, descricao, local, convidados)` | v8.5.0: cria um evento no calendário primary da conta. inicio/fim: 'AAAA-MM-DD HH:MM' (horário) ou 'AAAA-MM-DD' (dia in… |
 | `fmt_event(ev)` | Uma linha legível: 📅 18/10 14:00–15:00 · Título — 📍 Local · 3 participantes. |
 | `list_events(cfg, account, dias, limit, a_partir_de_agora)` | Lista eventos (somente leitura) de uma conta da agenda. |
+| `eventos_estruturados(cfg, dias)` | V9.0.0 (P4): eventos com início PARSEADO — os lembretes do secretário precisam de datetime, não da linha formatada. [{t… |
 | `add_account(cfg, user, client_id, client_secret, print_fn, on_code)` | Adiciona a agenda de uma conta Google via device code (2FA do provedor, sem senha). v8.5.0: escopo calendar.events (lei… |
 | `register_mcp(cfg)` | Registra o servidor MCP 'agenda' (secrets via env — nada no config). |
 | `status(cfg)` | — |

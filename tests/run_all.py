@@ -12351,7 +12351,8 @@ def T261_docs_e_perfis_da_auditoria():
     nunca são 'forte'; 'improved-chat'/'promptist-7b' não pegam 'pro'
     por substring) e a função morta solicitar_escalada foi REMOVIDA
     (auto-escalonamento com aval = backlog declarado). M11: versão
-    9.0.0-dev coerente (config+pyproject), waitress no requirements,
+    9.0.0 coerente (config+pyproject, SEM sufixo dev na release),
+    waitress no requirements,
     CHANGELOG com a entrada v9, README em dia. M12: diretrizes/
     roadmap/mapa versionados NO REPO com numeração corrigida. M8:
     skills_audit reporta '## Exemplo' (informativo, sem reprovar)."""
@@ -12369,16 +12370,22 @@ def T261_docs_e_perfis_da_auditoria():
     assert not hasattr(CAP, "solicitar_escalada"), \
         "função morta voltou (auditoria M9: ligar ou remover)"
 
-    # ── M11: versão e dependências coerentes
-    assert VERSION == "9.0.0-dev", VERSION
+    # ── M11: versão e dependências coerentes (RELEASE: sem sufixo dev —
+    # o pino acompanha o ciclo: dev durante o desenvolvimento, limpo na tag)
+    assert VERSION == "9.0.0", VERSION
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
-    assert 'version = "9.0.0.dev0"' in pyproject
+    assert 'version = "9.0.0"' in pyproject, "pyproject não é 9.0.0"
+    assert ".dev0" not in pyproject and "dev até a tag" not in pyproject, \
+        "sufixo dev sobrou no pyproject"
     assert "waitress" in Path("requirements.txt").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## v9.0.0-dev" in changelog[:400], "entrada v9 não está no topo"
+    assert "## v9.0.0 —" in changelog[:400], "entrada v9.0.0 não está no topo"
+    assert "em desenvolvimento" not in changelog[:400], \
+        "header dev ainda no topo do CHANGELOG"
     readme = Path("README.md").read_text(encoding="utf-8")
     # P0.1 lote 5: 262 (T262 = inventário do url_map)
-    assert "v9.0.0-dev" in readme and "262 testes" in readme
+    assert "v9.0.0" in readme and "262 testes" in readme
+    assert "v9.0.0-dev" not in readme, "README ainda se diz dev"
 
     # ── M12: governança versionada no repo + numeração sem duplicata
     diretrizes = Path("docs/DIRETRIZES.md").read_text(encoding="utf-8")

@@ -6,9 +6,9 @@
 > comportamento, muda a spec junto no MESMO commit*.
 >
 > Escrito em 09/11/2026, no meio do desenvolvimento da **v9.0.0**
-> (P0–P8 entregues; P0.1 pendente → release). Status de verificação de
-> cada item é DECLARADO (Diretriz 7: sucesso só com prova; "não
-> verificado" é estado válido, sucesso fingido não).
+> (P0–P8.3 e P0.1 entregues; **release v9.0.0 em 12/11/2026**). Status
+> de verificação de cada item é DECLARADO (Diretriz 7: sucesso só com
+> prova; "não verificado" é estado válido, sucesso fingido não).
 >
 > Operador: **Breno** · Repo: `beh-S4nt05/pluto-agente` (main) ·
 > Suíte: **262 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
@@ -421,6 +421,13 @@ projetos/rpg/
   .bat), update em 1 comando, doctor, backups, heartbeat.
 - **RF-INF-05** Grafo de código (v4.4.0): AST puro → SQLite; "onde
   está a lógica de X?" a custo zero de tokens.
+- **RF-INF-06** Cobertura com gate no CI (release v9.0.0 · fase F0):
+  floor **66%** no job ubuntu 3.13 e no release.yml, medido do mesmo
+  jeito que o baseline (`coverage run --source=pluto tests/run_all.py`;
+  docs/COBERTURA-BASELINE-2026-11-11.txt = 68%). Ratchet: **só sobe,
+  nunca desce** (floor = máximo já alcançado −2 pts de folga). Meta
+  honesta declarada: 89% (F3) em docs/VALIDACAO-PONTO-A-PONTO-V9.md
+  §5 — sem mentir no README.
 
 ---
 
@@ -525,30 +532,37 @@ testes + CI verde nos 3 SOs + docs + relatório."
 | P8.1 | Correção dos 3 bloqueadores da auditoria SDD (estágios 4/6/7 impostos no pipeline · git_run endurecido · DLP no secretário) | T254–T256 | ✅ 10/11 |
 | P8.2 | Segurança/robustez da auditoria: M4 (segredos por data-dir + escopo sensível) · M7 (`✖` = falha) · M6 (helper atômico único + secretário sem loop) · M5 (hook pré-push) | T257–T260 | ✅ 10/11 |
 | P8.3 | Alinhamento spec/docs: M8 (skills) · M9 (portões reservados + heurística por fronteira + escalada morta removida) · M11 (versão 9.0.0-dev, CHANGELOG/README, waitress, matriz py) · M12 (diretrizes/roadmap/mapa no repo) · §3/§6 (RFs dos módulos + modelo de dados) | T261 | ✅ 10/11 |
-| P0.1 | Queimar dívida win/mac (43 testes) + T107 | — | ⏳ pendente |
-| — | **Release v9.0.0** (suíte+ruff+varredura+checklist) | — | ⏳ após P0.1 |
+| P0.1 | Queimar dívida win/mac (43 testes) + T107 | T107+A–G | ✅ 11/11 · CI 43302014806 verde 4/4 · **262/262, 0 pulados nos 3 SOs** |
+| — | **Release v9.0.0** (suíte+ruff+varredura+checklist+**gate F0 66%**+gen_doc) | T261 | ✅ 12/11 · tag v9.0.0 |
 
 **Definition of Done do secretário (aceitação V9)** — 7 itens em
 `ROADMAP-V9-SECRETARIO.md` §4; destes, o **#6 (E2E REAL: 1 dia de uso
 com Ollama local de pé)** e o #7 parcial (prova viva na máquina do
 operador) **não são automatizáveis no CI — declarados pendentes**.
 
-**Backlog declarado (não escondido)**: E2E cérebro real Ollama · QA
-F1–F8 + Fase 2 · T107 (denylist × symlink) · 43 testes não portados
-(P0.1) · nível `seccomp` do sandbox não provável no runner (fd) —
-degrada para kernel.
+**Backlog declarado (não escondido)**: cobertura F1 75% → F2 82% →
+F3 89% (docs/VALIDACAO-PONTO-A-PONTO-V9.md §5) · ACL/keyring no
+Windows (modos 600/700 são chmod no-op lá; hoje a proteção é a ACL do
+perfil) · P0.2 (§4 da auditoria nº 2: sensível por ferramenta, saída
+web/e-mail/MCP não confiável) · **DoD#6: 1 dia de uso real com Ollama
+na máquina do operador** (harness pronto: `pluto selftest`) · nível
+`seccomp` do sandbox não provável no runner (fd) — degrada para kernel.
 
 ---
 
 ## 9. Portões de release
 
-1. Suíte 100% (253/253) local + CI verde nos 3 SOs (1ª tentativa é a
-   meta; falha intermediária = lição no commit).
+1. Suíte 100% (262/262, **0 pulados nos 3 SOs**) local + CI verde
+   nos 4 jobs (1ª tentativa é a meta; falha intermediária = lição no
+   commit).
 2. ruff `E9,F,B,PLE` limpo.
 3. Varredura de segredos limpa (CRÍTICO = 0).
-4. `CHECKLIST-PRE-RELEASE.md` conferido.
-5. README + CHANGELOG + **esta SPEC** atualizados no mesmo ciclo.
-6. Tag `vX.Y.Z` com mensagem de marco.
+4. **Cobertura ≥ floor do ratchet** (F0: 66%) — gate no CI
+   (RF-INF-06).
+5. `CHECKLIST-PRE-RELEASE.md` conferido.
+6. README + CHANGELOG + **esta SPEC** atualizados no mesmo ciclo +
+   `gen_doc.py` regenerado.
+7. Tag `vX.Y.Z` com mensagem de marco + release.yml publica o zip.
 
 ---
 

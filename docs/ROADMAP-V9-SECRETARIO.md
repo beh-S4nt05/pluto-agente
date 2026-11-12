@@ -393,10 +393,18 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **Portão computer-use**: integração cua via MCP documentada e
   desligada até `computer_use=True` — ligar não exige reescrita.
 
-### Release v9.0.0 (major = novo papel)
+### Release v9.0.0 (major = novo papel) — ✅ ENTREGUE (12/11/2026)
 - Bump 8.6.0 → 9.0.0, CHANGELOG/README/MAPA/gen_doc, gates, CI
   publicando a release sozinho, zip.
 - **Testes-alvo: 241 → ~250** (T242–T249).
+- **Feito**: `9.0.0.dev0` → `9.0.0` (config+pyproject, T261 pinando a
+  coerência SEM sufixo dev) · CHANGELOG/README/SPEC/MAPA em dia ·
+  `gen_doc.py` regenerado · **gate F0 de cobertura no CI e no
+  release.yml** (floor 66%, ratchet — RF-INF-06) ·
+  `CHECKLIST-PRE-RELEASE.md` como gate da tag · release notes curadas
+  (`docs/RELEASE-NOTES-v9.0.0.md`) · tag v9.0.0 com zip publicado pelo
+  workflow. Suíte final: **262/262 nos 3 SOs, 0 pulados** (último verde
+  pré-tag: CI 43302014806, 4/4 jobs).
 
 ---
 
@@ -415,6 +423,13 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
    para um provider forte) e reiniciar → verificação mais profunda,
    mais skills ativadas, autonomia estendida — SEM mexer em código
    (testado por T249 com dois perfis).
+
+**Status na tag v9.0.0 (12/11/2026 — Diretriz 7, sem sucesso fingido):**
+1 ✔ CI obrigatório (4 jobs, ruff→suíte→varredura→cobertura) · 2 ✔ T243–T244 ·
+3 ✔ T245–T246 · 4 ✔ T246 (quadro auditável) · 5 ✔ T247–T248 (briefing/
+lembretes/triagem provados em mock — campo = operador) · **6 ⏳ ABERTO:
+1 dia de uso real com Ollama é na máquina do operador (harness pronto:
+`pluto selftest`; nada aqui simula um dia de campo)** · 7 ✔ T249.
 
 ## 5. CUSTO POR NÍVEL DE CÉREBRO (calibração, NÃO limite)
 - Verificação de 2ª passada e autoavaliação são ARQUITETURA (sempre

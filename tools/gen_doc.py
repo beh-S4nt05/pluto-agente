@@ -318,16 +318,20 @@ A("\nSubcomandos: `pluto skills audit` (auditar o catálogo), "
   "`pluto config set/get`, `pluto server --host/--port/--token`.\n")
 
 # ── 3. modificações ──
+ch = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+# v9.0.0: contava releases na mão (dizia "40" com a tabela em 100+) —
+# agora é CALCULADO do CHANGELOG (headers "## vX.Y.Z —", sem dev)
+_n_rel = sum(1 for _l in ch.splitlines()
+             if re.match(r"## (v[\d.]+) — (.+)", _l))
 A(f"""
 ## 3. Modificações — o que foi feito (v1.0.0 → v{VERSION})
 
-40 releases. Tabela extraída do CHANGELOG (a versão detalhada de cada
+{_n_rel} releases. Tabela extraída do CHANGELOG (a versão detalhada de cada
 uma está lá):
 
 | Versão | Marca |
 |---|---|
 """)
-ch = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 for linha in ch.splitlines():
     m = re.match(r"## (v[\d.]+) — (.+)", linha)
     if m:

@@ -15,7 +15,10 @@ A **GUI web** liga/desliga agente e Ollama com um clique, mostra log ao vivo,
 chat com ferramentas visíveis na hora, tarefas agendadas, memória, skills,
 receitas, doctor e editor de automações n8n.
 
-**v9.0.0-dev** · 262 testes · 37 tools · 55 skills · CHANGELOG com todo o histórico. Limites calibráveis: POLITICAS.md · Especificação: SPEC.md.
+**v9.0.0** · 262 testes · 37 tools · 55 skills · CHANGELOG com todo o histórico.
+Limites calibráveis: POLITICAS.md · Especificação: SPEC.md.
+Cobertura de código: **gate ≥66% no CI** (ratchet — só sobe), meta honesta 89%
+declarada em `docs/VALIDACAO-PONTO-A-PONTO-V9.md` §5.
 
 ```
                         ┌─────────────────────────────┐

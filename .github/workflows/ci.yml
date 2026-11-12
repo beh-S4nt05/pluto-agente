@@ -48,18 +48,32 @@ jobs:
           bwrap --version
           bwrap --ro-bind / / --dev /dev --proc /proc true && echo "userns OK" || echo "userns BLOQUEADO"
 
-      - name: Instalar (pacote + ruff)
+      - name: Instalar (pacote + ruff + coverage)
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          pip install ruff
+          pip install ruff coverage
 
-      - name: "Portão 1/3 — ruff (lint)"
+      - name: "Portão 1/4 — ruff (lint)"
         run: ruff check --select E9,F,B,PLE .
 
-      - name: "Portão 2/3 — suíte (tests/run_all.py)"
+      - name: "Portão 2/4 — suíte (tests/run_all.py)"
         run: python tests/run_all.py
         timeout-minutes: 20
 
-      - name: "Portão 3/3 — varredura (segredos/dados pessoais)"
+      - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
+
+      # V9.0.0 (F0 · RF-INF-06): gate de cobertura — floor 66%,
+      # RATCHET que só sobe (floor = máximo já alcançado −2 pts de
+      # folga; subir o floor é commit consciente, nunca acidente).
+      # Medido do MESMO jeito que o baseline
+      # (docs/COBERTURA-BASELINE-2026-11-11.txt = 68%):
+      # coverage run --source=pluto tests/run_all.py. Só no job
+      # canônico ubuntu 3.13 — os outros SOs provam portabilidade.
+      - name: "Portão 4/4 — cobertura (F0: floor 66%, ubuntu 3.13)"
+        if: runner.os == 'Linux' && matrix.python-version == '3.13'
+        run: |
+          coverage run --source=pluto tests/run_all.py
+          coverage report --fail-under=66
+        timeout-minutes: 20

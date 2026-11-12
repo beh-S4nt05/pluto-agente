@@ -1,14 +1,15 @@
 # Changelog
 
-## v9.0.0-dev — 🤵 O SECRETÁRIO (em desenvolvimento — tag após P0.1)
+## v9.0.0 — 🤵 O SECRETÁRIO (release 12/11/2026)
 
 A versão do "agente que cuida de você": CI/CD de verdade, cérebro
 escalável (Princípio 0), anti-alucinação com verificação e autoavaliação
 IMPOSTAS no pipeline, contexto durável, secretário proativo, sandbox
 provado no CI, honestidade radical no cerne e projetos como nodes.
-Norteadada pelo ROADMAP-V9 e pela **auditoria externa de conformidade
+Norteadada pelo ROADMAP-V9, pela **auditoria externa de conformidade
 SDD** (validada claim a claim em docs/VALIDACAO-AUDITORIA-SDD.md —
-3 achados Alta e 9 Média corrigidos).
+3 achados Alta e 9 Média corrigidos) e pela **validação ponto a ponto
+da auditoria nº 2** (docs/VALIDACAO-PONTO-A-PONTO-V9.md).
 
 - **P0 (T242)**: CI nos 3 SOs (ruff → suíte → varredura) + release.yml.
 - **P7 (T249)**: `capacidades.py` — portões de capacidade por perfil do
@@ -46,6 +47,35 @@ SDD** (validada claim a claim em docs/VALIDACAO-AUDITORIA-SDD.md —
   no requirements, matriz Python 3.11+3.13 no CI, CHANGELOG/README em
   dia, diretrizes/roadmap/mapa versionados no repo (docs/), SPEC com
   RFs dos módulos operacionais e modelo de dados completo.
+- **P0.1 (T107 + lotes 1–6)**: dívida de portabilidade **ZERO** — 0
+  testes pulados nos 3 SOs (eram 38 no Windows · 5 no macOS em 07/11).
+  T107 (denylist não resolve symlink — bug de segurança, 2 planos) +
+  grupos A–G: escopo de caminhos e menções, digesto canônico,
+  env/venv/alias/URL por SO, modos 600/700 OS-aware (helper
+  `_modo_exclusivo_dono`), liveness portátil (`plataforma.liveness`).
+  No caminho, 2 bugs reais do produto: a idempotência da autocura no
+  Windows rodava `pip install -e .` a CADA chamada (só checava
+  `pluto.exe`, o fallback manual cria `pluto.bat`) e a suíte vazava
+  `PLUTO_DATA_DIR` entre testes (a migração de home do T236 era
+  pulada sem ninguém ver).
+- **Auditoria nº 2 · §4.2 (lote 5)**: **21 rotas de API que burlavam
+  a auth agora `@protected`** (incluindo `/api/financas/transferir`,
+  que move dinheiro, e `/api/perguntas`, que controla o agente) +
+  **T262**: inventário do `url_map` com allowlist explícita — rota
+  nova sem classificação consciente derruba o pipeline.
+- **Gates de release (F0)**: **cobertura com gate no CI** — floor
+  **66%** (ratchet: só sobe, nunca desce; floor = máximo alcançado
+  −2 pts de folga), medido do mesmo jeito que o baseline
+  (`coverage run --source=pluto tests/run_all.py`), no job ubuntu
+  3.13 e no release.yml; `CHECKLIST-PRE-RELEASE.md` atualizado como
+  gate da tag; `gen_doc.py` regenerado; release notes curadas em
+  `docs/RELEASE-NOTES-v9.0.0.md`.
+- **Status honesto (DoD do secretário, §4 do ROADMAP)**: itens 1–5 e
+  7 provados por máquina (CI/suíte); **#6 (E2E real: 1 dia de uso com
+  Ollama local de pé) declarado ABERTO** — harness pronto
+  (`pluto selftest`), o campo é na máquina do operador. Backlog
+  declarado: cobertura 75→82→89% (F1–F3, docs/VALIDACAO-PONTO-A-PONTO-V9.md
+  §5) · ACL/keyring no Windows · P0.2 (§4 da auditoria nº 2).
 
 ## v8.6.0 — 🧩 MCP: PARIDADE GENKIT (SSE + RECURSOS + PROMPTS)
 

@@ -8,3 +8,8 @@ __pycache__/
 # artefatos de release
 *.zip
 memoria-do-operador.json
+
+# gate F0 de cobertura (coverage run cria .coverage/ na raiz)
+.coverage
+.coverage.*
+htmlcov/

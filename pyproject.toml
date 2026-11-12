@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pluto-agent"
-version = "9.0.0.dev0"   # P8.3: dev até a tag v9.0.0
+version = "9.0.0"       # v9.0.0 — O Secretário (release 12/11/2026)
 classifiers = [
   "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS",
