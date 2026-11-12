@@ -81,17 +81,12 @@ _SO = {"Linux": "linux", "Darwin": "macos",
 
 _NAO_PORTADOS: dict = {
     "windows": {
-        "T38_guard_retry_modelo_recupera_e_executa",
-        "T39_guard_teimoso_hermes_executa_no_lugar",
         "T55_skills_aplicadas_ao_pipeline",
         "T65_integracao_skills_injecao_e_modelos",
-        "T81_update_end_to_end_v3110_local",
         "T124_provedores_externos_gratuitos",
         "T141_renome_betterme_migracao_e_identidade",
         "T142_telegram_token_allowlist_e_comandos",
         "T172_fluxos_remover_tool_e_gui",
-        "T177_update_garante_comando_betterme",
-        "T178_instalacao_editavel_robusta",
         "T183_n8n_integracao_melhorada",
         "T192_omniroute_gateway_local",
         "T213_financas_sumup_sync_mock",
@@ -959,18 +954,40 @@ def T37_system_busy_relativo_a_nucleos():
 
 # ════════════════════ v3.0.2 — guard de execução (Claude Code) ════════════════════
 
-def _fake_cli(script_body: str) -> tuple[Path, Path]:
-    """Cria CLI falsa; devolve (dir, executável)."""
+def _fake_cli(respostas: list[list[str]], contar: bool = False
+              ) -> tuple[Path, Path]:
+    """CLI falsa PORTÁVEL (ponte python nos 2 SOs — o bash não roda no
+    Windows): `--version` → 2.1.301 (Claude Code); a N-ésima invocação
+    imprime as linhas de respostas[N-1] (a última repete). contar=True
+    grava o nº de invocações em <dir>/cnt. Devolve (dir, executável)."""
     d = Path(tempfile.mkdtemp(prefix="pluto-cli-"))
-    exe = d / "claude"
-    exe.write_text("#!/bin/bash\n" + script_body, encoding="utf-8")
-    exe.chmod(0o755)
+    py = d / "claude_fake.py"
+    src = ["import sys", "from pathlib import Path",
+           "D = Path(__file__).resolve().parent",
+           "if sys.argv[1:2] == ['--version']:",
+           "    print('2.1.301 (Claude Code)')",
+           "    sys.exit(0)"]
+    if contar:
+        src += ["cnt = D / 'cnt'",
+                "n = int((cnt.read_text() if cnt.exists()"
+                " else '0').strip() or 0) + 1",
+                "cnt.write_text(str(n))",
+                "rsp = RSPS[min(n, len(RSPS)) - 1]"]
+    else:
+        src += ["rsp = RSPS[0]"]
+    src += ["for ln in rsp:", "    print(ln)"]
+    py.write_text("RSPS = " + repr(respostas) + "\n" + "\n".join(src) + "\n",
+                  encoding="utf-8")
+    if _SO == "windows":
+        exe = d / "claude.cmd"
+        exe.write_bytes(f'@echo off\r\n"{sys.executable}" "{py}" %*\r\n'
+                        .encode("utf-8"))
+    else:
+        exe = d / "claude"
+        exe.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{py}" "$@"\n',
+                       encoding="utf-8")
+        exe.chmod(0o755)
     return d, exe
-
-
-def _cli_prologue() -> str:
-    return ('if [[ "$1" == "--version" ]]; then echo "2.1.301 (Claude Code)"; exit 0; fi\n'
-            'D="$(dirname "$0")"\n')
 
 
 @case
@@ -981,20 +998,13 @@ def T38_guard_retry_modelo_recupera_e_executa():
 
     cfg = Config(data_dir=tempfile.mkdtemp(prefix="pluto-t-"), mock=False)
     cfg.update({"model": "qwen2.5-coder:7b"})
-    body = (_cli_prologue()
-            + 'N=$(cat "$D/cnt" 2>/dev/null || echo 0); N=$((N+1)); echo $N > "$D/cnt"\n'
-            + 'if [[ "$N" == "1" ]]; then\n'
-            + "cat <<'EOF'\n"
-            + '{"type":"result","subtype":"success","result":"Vou verificar. Execute o comando:\\n```bash\\ncat /etc/os-release\\n```\\nVoumos executar agora."}\n'
-            + "EOF\n"
-            + "else\n"
-            + "cat <<'EOF'\n"
-            + '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cat /etc/os-release"}}]}}\n'
-            + '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"PRETTY_NAME=\\"Teste-Real-Zorin\\""}]}}\n'
-            + '{"type":"result","subtype":"success","result":"Saida REAL: PRETTY_NAME=\\"Teste-Real-Zorin\\" — sistema identificado."}\n'
-            + "EOF\n"
-            + "fi\n")
-    d, _ = _fake_cli(body)
+    preguicosa = ('{"type":"result","subtype":"success","result":"Vou verificar. Execute o comando:\\n```bash\\ncat /etc/os-release\\n```\\nVoumos executar agora."}')
+    obediente = [
+        '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cat /etc/os-release"}}]}}',
+        '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"PRETTY_NAME=\\"Teste-Real-Zorin\\""}]}}',
+        '{"type":"result","subtype":"success","result":"Saida REAL: PRETTY_NAME=\\"Teste-Real-Zorin\\" — sistema identificado."}',
+    ]
+    d, _ = _fake_cli([[preguicosa], obediente], contar=True)
     os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
     try:
         evs: list[dict] = []
@@ -1018,11 +1028,8 @@ def T39_guard_teimoso_hermes_executa_no_lugar():
 
     cfg = Config(data_dir=tempfile.mkdtemp(prefix="pluto-t-"), mock=False)
     cfg.update({"model": "qwen2.5-coder:7b"})
-    body = (_cli_prologue()
-            + "cat <<'EOF'\n"
-            + '{"type":"result","subtype":"success","result":"Voumos verificar:\\n```bash\\necho zorin-guard-ok\\n```\\n```bash\\nPRETTY_NAME=\\"Zorin OS 16\\"\\n```\\nVoumos executar agora."}\n'
-            + "EOF\n")
-    d, _ = _fake_cli(body)
+    teimosa = ('{"type":"result","subtype":"success","result":"Voumos verificar:\\n```bash\\necho zorin-guard-ok\\n```\\n```bash\\nPRETTY_NAME=\\"Zorin OS 16\\"\\n```\\nVoumos executar agora."}')
+    d, _ = _fake_cli([[teimosa]])
     os.environ["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
     try:
         evs: list[dict] = []
@@ -1899,7 +1906,7 @@ def T81_update_end_to_end_v3110_local():
     with _zf.ZipFile(tmp / f"{nova}.zip", "w") as zf:
         for f in sorted(src.rglob("*")):
             if f.is_file():
-                zf.write(f, f.relative_to(tmp))
+                zf.write(f, f.relative_to(tmp).as_posix())
     (tmp / "tags.json").write_text(
         json.dumps([{"name": "v3.9.0"}, {"name": nova}]),
         encoding="utf-8")
@@ -1918,8 +1925,9 @@ def T81_update_end_to_end_v3110_local():
 
     _api, _zip, _root = up.TAGS_API, up.ZIP_URL, up._project_root
     try:
-        up.TAGS_API = f"file://{tmp}/tags.json"
-        up.ZIP_URL = f"file://{tmp}/{{tag}}.zip"
+        # as_uri(): no windows f"file://{tmp}/..." não é URL válida
+        up.TAGS_API = (tmp / "tags.json").as_uri()
+        up.ZIP_URL = tmp.as_uri() + "/{tag}.zip"
         up._project_root = lambda: dest
         out = []
         t0 = time.time()
@@ -7005,11 +7013,13 @@ def T177_update_garante_comando_betterme():
 
     # venv falso POSIX: pip mockado (rc 0 mas não cria) → fallback manual
     raiz = Path(tempfile.mkdtemp(prefix="ep-fix-"))
-    bin_ = raiz / ".venv" / "bin"
+    win = _SO == "windows"            # layout do venv é por SO
+    bin_ = raiz / ".venv" / ("Scripts" if win else "bin")
     bin_.mkdir(parents=True)
-    pyf = bin_ / "python"
-    pyf.write_text("#!/bin/sh\n", encoding="utf-8")
-    pyf.chmod(0o755)
+    pyf = bin_ / ("python.exe" if win else "python")
+    pyf.write_text("x", encoding="utf-8")
+    if not win:
+        pyf.chmod(0o755)
     chamadas = []
 
     class _R:
@@ -7022,11 +7032,17 @@ def T177_update_garante_comando_betterme():
         assert chamadas and chamadas[0][1:4] == ["-m", "pip", "install"], \
             chamadas
         assert "--no-deps" in chamadas[0]
-        launcher = bin_ / "pluto"
-        assert launcher.is_file()
-        txt = launcher.read_text(encoding="utf-8")
-        assert "from pluto.cli import main" in txt and "sys.exit" in txt
-        assert txt.startswith("#!") and "python" in txt.splitlines()[0]
+        if win:                  # fallback manual do windows: pluto.bat
+            bat = bin_ / "pluto.bat"
+            assert bat.is_file(), sorted(q.name for q in bin_.iterdir())
+            txt = bat.read_text(encoding="utf-8")
+            assert "-m pluto" in txt and "python.exe" in txt
+        else:
+            launcher = bin_ / "pluto"
+            assert launcher.is_file()
+            txt = launcher.read_text(encoding="utf-8")
+            assert "from pluto.cli import main" in txt and "sys.exit" in txt
+            assert txt.startswith("#!") and "python" in txt.splitlines()[0]
         # idempotente: 2ª chamada NÃO roda pip de novo
         n = len(chamadas)
         assert U.garantir_entry_points(raiz, log=lambda *_a: None) is True
@@ -7073,11 +7089,13 @@ def T178_instalacao_editavel_robusta():
     import pluto.update as U
 
     raiz = Path(tempfile.mkdtemp(prefix="ep660-"))
-    bin_ = raiz / ".venv" / "bin"
+    win = _SO == "windows"
+    bin_ = raiz / ".venv" / ("Scripts" if win else "bin")
     bin_.mkdir(parents=True)
-    pyf = bin_ / "python"
-    pyf.write_text("#!/bin/sh\n", encoding="utf-8")
-    pyf.chmod(0o755)
+    pyf = bin_ / ("python.exe" if win else "python")
+    pyf.write_text("x", encoding="utf-8")
+    if not win:
+        pyf.chmod(0o755)
     chamadas = []
 
     class _R0:                      # 1ª tentativa: falha (setuptools velho)
@@ -7091,7 +7109,8 @@ def T178_instalacao_editavel_robusta():
         if "-U" in cmd:             # upgrade pip setuptools → ok
             return _R1()
         if "-e" in cmd and len(chamadas) > 2:   # 2ª tentativa -e: cria
-            (bin_ / "pluto").write_text("#!x\n", encoding="utf-8")
+            (bin_ / ("pluto.exe" if win else "pluto")).write_text(
+                "x", encoding="utf-8")
             return _R1()
         return _R0()                # 1ª tentativa -e: falha
 
@@ -7103,7 +7122,8 @@ def T178_instalacao_editavel_robusta():
         assert ups and "setuptools" in ups[0] and "pip" in ups[0], ups
         es = [c for c in chamadas if "-e" in c]
         assert len(es) == 2, "deveria tentar -e exatamente 2x"
-        assert (bin_ / "pluto").is_file()    # oficial, sem launcher manual
+        # oficial (pluto.exe no win), sem launcher manual
+        assert (bin_ / ("pluto.exe" if win else "pluto")).is_file()
     finally:
         U.subprocess.run = orig
     # (iii) README orienta o upgrade numa instalação nova
@@ -12334,7 +12354,8 @@ def T261_docs_e_perfis_da_auditoria():
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
     assert "## v9.0.0-dev" in changelog[:400], "entrada v9 não está no topo"
     readme = Path("README.md").read_text(encoding="utf-8")
-    assert "v9.0.0-dev" in readme and "261 testes" in readme
+    # P0.1 lote 5: 262 (T262 = inventário do url_map)
+    assert "v9.0.0-dev" in readme and "262 testes" in readme
 
     # ── M12: governança versionada no repo + numeração sem duplicata
     diretrizes = Path("docs/DIRETRIZES.md").read_text(encoding="utf-8")
@@ -12362,6 +12383,41 @@ def T261_docs_e_perfis_da_auditoria():
         "para gatilhos claros e casamento correto.\n---\ncorpo\n\n"
         "## Exemplo\n- faz assim\n", encoding="utf-8")
     assert audit_skill(d)["exemplo"] is True
+
+
+@case
+def T262_inventario_url_map_toda_api_protegida():
+    """V9.0.0 P0.1 lote 5 (auditoria externa nº 2, §1.3): TODO endpoint
+    de dados/mutação é @protected — o inventário percorre o url_map e
+    FALHA se uma rota nova nascer sem classificação consciente (ou é
+    protegida, ou entra no allowlist público com justificativa). O
+    allowlist é só o shell da GUI (+ preflight OPTIONS + ícones PWA).
+    Com token configurado: sem token → 401; com token → 200."""
+    from pluto.server.app import create_app
+
+    PUBLICAS = {"/", "/api/<path:_rest>", "/contas", "/financas",
+                "/fluxos", "/icon-<int:size>.png",
+                "/manifest.webmanifest", "/static/<path:filename>",
+                "/sw.js"}
+    app = create_app(fresh())
+    fns = {r.rule: app.view_functions[r.endpoint]
+           for r in app.url_map.iter_rules()}
+    sem_auth = {rule for rule, fn in fns.items()
+                if not getattr(fn, "_pluto_protected", False)}
+    assert sem_auth == PUBLICAS, sorted(sem_auth ^ PUBLICAS)
+    # comportamento: token configurado → dados bloqueados sem token
+    cfg = fresh(auth_token="segredo-t262")
+    c = _app(cfg)
+    assert c.get("/api/financas/resumo").status_code == 401
+    assert c.get("/api/perguntas").status_code == 401
+    assert c.get("/api/fluxos/status").status_code == 401
+    r = c.get("/api/perguntas",
+              headers={"X-Pluto-Token": "segredo-t262"})
+    assert r.status_code == 200, r.status_code
+    # shell da GUI segue público (a página carrega; os DADOS é que
+    # pedem token — as GUIs secundárias enviam X-Pluto-Token)
+    assert c.get("/financas").status_code == 200
+    assert c.get("/").status_code == 200
 
 
 if __name__ == "__main__":

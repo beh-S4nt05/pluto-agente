@@ -278,11 +278,18 @@
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
-const api = (caminho, opts) => fetch(caminho, opts).then(async (r) => {
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.erro || ("HTTP " + r.status));
-  return d;
-});
+const _tok = () => { try{ return localStorage.getItem("hermes_token") || ""; }catch(e){ return ""; } };
+const api = (caminho, opts) => {
+  const o = Object.assign({headers:{}}, opts);
+  const t = _tok();
+  if (t) o.headers["X-Pluto-Token"] = t;   // P0.1 lote 5: rotas protegidas
+  return fetch(caminho, o).then(async (r) => {
+    if (r.status === 401){ location.href = "/"; throw new Error("token necessário"); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || ("HTTP " + r.status));
+    return d;
+  });
+};
 const num = (s) => parseFloat(String(s || "0").replace(",", ".")) || 0;
 const brl = (v) => (v < 0 ? "−R$ " : "R$ ") +
   Math.abs(v).toLocaleString("pt-BR", {minimumFractionDigits: 2, maximumFractionDigits: 2});

@@ -186,7 +186,7 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **M5 → T260**: `pluto gates --instalar-hook` grava o hook pré-push
   (varredura bloqueia o push ANTES de sair; hook alheio preservado).
 
-### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 4/≈5)
+### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 5/6)
 - **Lote 1 ✔ (10/11)**: T107-mac — bug REAL de segurança corrigido
   (deny nos dois planos: /etc→/private/etc não escapa) + prova de
   symlink na suíte. Restam 38 (37 win · 4 mac).
@@ -220,7 +220,18 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
   ps aux -m); T166/T174/T188 viraram testes OS-aware (hint apt/brew/
   winget, fluxo real systemd/launchd/.bat com HOME falso, marcador de
   CPU por SO). Restam 16 no win: E (2) · F (3) · G (11).
-- Lotes seguintes: E-guards (2) · F-update (3) · G-triagem (11).
+- **Lote 5 ✔ (11/11)**: E+F (5) — guards T38/T39 com CLI falsa em
+  ponte python (literais JSON verbatim); T81 com `Path.as_uri()`;
+  T177/T178 com venv no layout do SO + **bug real corrigido**: a
+  idempotência da autocura no Windows só checava `pluto.exe` (o
+  fallback cria `pluto.bat` → pip rodava a cada chamada). Junto,
+  a melhoria §4.2 da auditoria nº 2: **21 rotas de API que burlavam
+  a auth** (financas/contas/perguntas/fluxos-status — incluindo
+  `/api/financas/transferir`!) agora `@protected`; GUIs secundárias
+  enviam `X-Pluto-Token`; **T262** percorre o url_map com allowlist
+  explícito (nova rota sem classificação = pipeline vermelho).
+  Restam 11 (só G).
+- Lote final: G-triagem (11).
 - **11/11 · auditoria externa nº 2 (contraprova)**:
   docs/VALIDACAO-PONTO-A-PONTO-V9.md — 23 pontos verificados contra o
   repo vivo (11 ✔ · 6 ⚠ · 5 ✖ desatualizados); **baseline de cobertura

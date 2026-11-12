@@ -20,7 +20,7 @@
 O runner tem um guarda: nome na lista que não existe mais na suíte
 **falha o pipeline** (dívida com nome de teste apagado = lista mentindo).
 
-## Windows — 16 testes (era 38 — A ✔ lote 2 · B ✔ lote 3 · C+D ✔ lote 4, 10/11/2026)
+## Windows — 11 testes (era 38 — A ✔ lote 2 · B ✔ lote 3 · C+D ✔ lote 4 · E+F ✔ lote 5, 11/11/2026)
 
 Causas confirmadas na 1ª execução (log do job), agrupadas:
 
@@ -92,13 +92,22 @@ dívida do **macOS** junto).
 | T174 | fluxo REAL do teste era systemd-only (`status.so == "linux"`) | teste OS-aware: linux systemd · macos launchd (launchctl) · windows .bat na Inicialização — todos com HOME falso + subprocess falso |
 | T188 | marcador de CPU real (`Model name` do lscpu) é Linux-only | marcadores por SO: lscpu · sysctl (`brand_string`/`hw.physicalcpu`) · Get-CimInstance (`NumberOfCores`…) |
 
-### E. Guards do Claude Code (2)
-T38_guard_retry_modelo_recupera_e_executa · T39_guard_teimoso_hermes_executa_no_lugar
-— mensagens/fluxo com `claude` ausente diferem no Windows.
+### E. Guards do Claude Code — ✔ PORTADO (P0.1 · lote 5)
+~~T38~~ · ~~T39~~ — a CLI falsa dos guards era um SCRIPT BASH com
+heredocs e contador; agora é uma ponte python (`_fake_cli` com listas
+de resposta + `contar=True` p/ o cnt) que roda nos 2 SOs. Os literais
+JSON das respostas foram preservados verbatim (asserts exigem
+byte-exact). O guard em si já era OS-agnático (`run_command` resolve
+o shell; `=`/`"` no 1º token → "pulado" é lógica pura).
 
-### F. Update/instalação (3)
-T81_update_end_to_end_v3110_local (`não consegui consultar o GitHub`) ·
-T177_update_garante_comando_betterme · T178_instalacao_editavel_robusta.
+### F. Update/instalação — ✔ PORTADO (P0.1 · lote 5)
+~~T81~~ · ~~T177~~ · ~~T178~~ — 3 causas:
+
+| Causa | Correção |
+|---|---|
+| T81: `f"file://{tmp}/…"` não é URL válida no Windows (`file://C:\…`) | `Path.as_uri()` + arcnames do zip com `.as_posix()` |
+| T177/T178: venv falsa no layout POSIX (`bin/python`) — o produto já era OS-aware (`Scripts/python.exe`), o teste é que não era | layout por SO no fixture + asserts do launcher por SO (`pluto` shebang × `pluto.bat`) |
+| 🐛 produto (achado na porta): no Windows o fallback manual cria `pluto.bat`, mas a idempotência só checava `pluto.exe` → a autocura rodava `pip install -e .` a CADA chamada | `garantir_entry_points` considera `pluto.bat` (update.py) |
 
 ### G. Demais (11) — triar na 1ª porta
 T55 · T65 · T124 · T141 · T142 · T172 · T183 · T192 · T213 · T216 · T236.
@@ -121,7 +130,8 @@ A suíte agora roda **261/261 no macOS** (nenhum pulado).
 2. ~~Grupo A do Windows~~ ✔ lote 2 — WinError 193 + 5 bugs de produto;
 3. ~~Grupo B do Windows~~ ✔ lote 3 — 11 testes + 5 bugs de produto;
 4. ~~Grupo C+D~~ ✔ lote 4 — macOS em ZERO; win 22→16;
-5. Resto: E-guards (2) · F-update (3) · G-triagem (11).
+5. ~~E-guards + F-update~~ ✔ lote 5 — + url_map: 21 rotas sem auth;
+6. Resto: G-triagem (11) — último lote.
 
 *docs/PORTABILIDADE.md · V9.0.0 P0 · fonte: run 42340204729 (logs dos
 jobs windows-latest/macos-latest, 07/11/2026). Atualizar a cada porta.*

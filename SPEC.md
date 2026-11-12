@@ -11,7 +11,7 @@
 > verificado" é estado válido, sucesso fingido não).
 >
 > Operador: **Breno** · Repo: `beh-S4nt05/pluto-agente` (main) ·
-> Suíte: **261 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
+> Suíte: **262 casos** · Tools: **37** · Skills: **55** · CI: **3 SOs**
 > (ubuntu · macos · windows) — último verde: ver §8.
 
 ---
@@ -410,9 +410,10 @@ projetos/rpg/
   com veredito JSON validado).
 - **RF-INF-03** Portabilidade (`docs/PORTABILIDADE.md`): matriz de
   dívida declarada — `_NAO_PORTADOS` por SO, visível na suíte
-  (⏭ pulados listados). **Dívida atual: 16 (windows) · 0 (macos) —
-  queimando no P0.1 (lote 1: T107/deny; lote 2: A + 5 bugs; lote 3:
-  B + 5 bugs; lote 4: C+D — macOS zerado, digesto canônico nos 3 SOs).**
+  (⏭ pulados listados). **Dívida atual: 11 (windows) · 0 (macos) —
+  queimando no P0.1 (lotes 1–4 como acima; lote 5: E+F ✔ +
+  auditoria nº 2: 21 rotas de API que burlavam a auth agora
+  @protected, com inventário do url_map provado pelo T262).**
 - **RF-INF-04** Autostart reversível (systemd user · LaunchAgent ·
   .bat), update em 1 comando, doctor, backups, heartbeat.
 - **RF-INF-05** Grafo de código (v4.4.0): AST puro → SQLite; "onde

@@ -157,7 +157,10 @@ def garantir_entry_points(root: Path, log=print) -> bool:
     win = so() == "windows"
     bindir = root / ".venv" / ("Scripts" if win else "bin")
     alvo = bindir / ("pluto.exe" if win else "pluto")
-    if alvo.exists():
+    # P0.1 (lote 5): no Windows o fallback manual cria pluto.bat (não
+    # pluto.exe) — sem checá-lo a autocura rodava o pip a CADA chamada
+    # (quebrava a idempotência prometida)
+    if alvo.exists() or (win and (bindir / "pluto.bat").exists()):
         return True                       # já registrado nada a fazer
     # 1) regeneração oficial (não toca nas deps — offline-safe)
     tentativa = [str(py), "-m", "pip", "install", "-e", ".", "-q",

@@ -115,6 +115,7 @@ def create_app(cfg: Config) -> Flask:
                     return jsonify({"ok": False, "msg": "token de acesso inválido"}), 401
             return fn(*args, **kwargs)
 
+        wrapper._pluto_protected = True   # P0.1 lote 5: inventário do url_map
         return wrapper
 
     @app.after_request
@@ -154,6 +155,7 @@ def create_app(cfg: Config) -> Flask:
         return resp
 
     @app.get("/api/fluxos/status")
+    @protected
     def fluxos_status():
         from .. import fluxos
         return jsonify(fluxos.status(cfg))
@@ -273,11 +275,13 @@ self.addEventListener("fetch", (e) => {
 
     # ------------------------------------------- orquestrador (v3.3)
     @app.get("/api/perguntas")
+    @protected
     def perguntas_pendentes():
         from ..perguntas import pendentes
         return jsonify(pendentes())
 
     @app.post("/api/pergunta/<pid>")
+    @protected
     def pergunta_responder(pid):
         from ..perguntas import responder
         dados = request.get_json(force=True, silent=True) or {}
@@ -1911,10 +1915,12 @@ self.addEventListener("fetch", (e) => {
         return Response(html, mimetype="text/html")
 
     @app.route("/api/financas/resumo")
+    @protected
     def fin_resumo():
         return jsonify(FIN.resumo(cfg, request.args.get("mes") or None))
 
     @app.route("/api/financas/lancamentos")
+    @protected
     def fin_lancamentos():
         de = (request.args.get("de") or "").strip()
         ate = (request.args.get("ate") or "").strip()
@@ -1946,6 +1952,7 @@ self.addEventListener("fetch", (e) => {
                         "itens": itens[offset:offset + limite]})
 
     @app.route("/api/financas/lancamentos", methods=["POST"])
+    @protected
     def fin_lancar():
         d = request.get_json(silent=True) or {}
         try:
@@ -1959,6 +1966,7 @@ self.addEventListener("fetch", (e) => {
             return jsonify({"erro": str(exc)}), 400
 
     @app.route("/api/financas/transferir", methods=["POST"])
+    @protected
     def fin_transferir():
         d = request.get_json(silent=True) or {}
         r = FIN.transferir(cfg, d.get("de") or "", d.get("para") or "",
@@ -1969,6 +1977,7 @@ self.addEventListener("fetch", (e) => {
 
     @app.route("/api/financas/lancamentos/<id_lanc>",
                methods=["PATCH", "DELETE"])
+    @protected
     def fin_lancamento_id(id_lanc):
         if request.method == "DELETE":
             r = FIN.remover(cfg, id_lanc)
@@ -1979,6 +1988,7 @@ self.addEventListener("fetch", (e) => {
                 else (jsonify(r), 400))
 
     @app.route("/api/financas/contas", methods=["GET", "POST"])
+    @protected
     def fin_contas():
         if request.method == "POST":
             d = request.get_json(silent=True) or {}
@@ -1991,6 +2001,7 @@ self.addEventListener("fetch", (e) => {
         return jsonify({"contas": FIN.contas(cfg)})
 
     @app.route("/api/financas/contas/<id_conta>", methods=["PATCH"])
+    @protected
     def fin_conta_id(id_conta):
         r = FIN.salvar_conta(cfg, id_conta,
                              **(request.get_json(silent=True) or {}))
@@ -1998,6 +2009,7 @@ self.addEventListener("fetch", (e) => {
                 else (jsonify(r), 400))
 
     @app.route("/api/financas/regras", methods=["GET", "POST"])
+    @protected
     def fin_regras():
         if request.method == "POST":
             d = request.get_json(silent=True) or {}
@@ -2011,6 +2023,7 @@ self.addEventListener("fetch", (e) => {
         return jsonify({"regras": FIN.regras(cfg)})
 
     @app.route("/api/financas/orcamentos", methods=["GET", "POST"])
+    @protected
     def fin_orcamentos():
         if request.method == "POST":
             d = request.get_json(silent=True) or {}
@@ -2022,6 +2035,7 @@ self.addEventListener("fetch", (e) => {
         return jsonify({"orcamentos": FIN.orcamentos(cfg)})
 
     @app.route("/api/financas/faturas", methods=["POST"])
+    @protected
     def fin_fatura():
         d = request.get_json(silent=True) or {}
         try:
@@ -2032,6 +2046,7 @@ self.addEventListener("fetch", (e) => {
             return jsonify({"erro": str(exc)}), 400
 
     @app.route("/api/financas/importar", methods=["POST"])
+    @protected
     def fin_importar():
         arq = request.files.get("arquivo")
         if arq is None or not arq.filename:
@@ -2054,6 +2069,7 @@ self.addEventListener("fetch", (e) => {
         return jsonify(r)
 
     @app.route("/api/financas/sumup/sync", methods=["POST"])
+    @protected
     def fin_sumup():
         try:
             r = FIN.sync_sumup(cfg)
@@ -2062,6 +2078,7 @@ self.addEventListener("fetch", (e) => {
             return jsonify({"erro": str(exc)[:300]}), 400
 
     @app.route("/api/financas/conexoes")
+    @protected
     def fin_conexoes():
         """Estado honesto das conexões de dados bancários."""
         from .. import belvo as BELVO
@@ -2090,10 +2107,12 @@ self.addEventListener("fetch", (e) => {
         return resp
 
     @app.get("/api/contas")
+    @protected
     def contas_listar():
         return jsonify({"contas": CONTAS.listar(cfg)})
 
     @app.post("/api/contas/<vinculo>/conectar")
+    @protected
     def contas_conectar(vinculo):
         r = CONTAS.conectar(cfg, vinculo,
                             request.get_json(silent=True) or {})
@@ -2101,16 +2120,19 @@ self.addEventListener("fetch", (e) => {
                 else (jsonify(r), 400))
 
     @app.get("/api/contas/<vinculo>/estado")
+    @protected
     def contas_estado(vinculo):
         return jsonify(CONTAS.estado(vinculo))
 
     @app.post("/api/contas/<vinculo>/desconectar")
+    @protected
     def contas_desconectar(vinculo):
         r = CONTAS.desconectar(cfg, vinculo)
         return (jsonify(r) if not r.get("erro")
                 else (jsonify(r), 400))
 
     @app.post("/api/contas/<vinculo>/testar")
+    @protected
     def contas_testar(vinculo):
         return jsonify(CONTAS.testar(cfg, vinculo))
 

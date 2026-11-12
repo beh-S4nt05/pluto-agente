@@ -194,7 +194,7 @@
 async function carregar(){
   let st;
   try{
-    st = await (await fetch("/api/fluxos/status")).json();
+    st = await (await fetch("/api/fluxos/status", {headers: (()=>{try{const t=localStorage.getItem("hermes_token")||"";return t?{"X-Pluto-Token":t}:{};}catch(e){return {};}})()})).json();
   }catch(e){
     document.getElementById("st").textContent =
       "sem resposta da API do Pluto";
