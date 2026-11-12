@@ -221,6 +221,15 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
   winget, fluxo real systemd/launchd/.bat com HOME falso, marcador de
   CPU por SO). Restam 16 no win: E (2) · F (3) · G (11).
 - Lotes seguintes: E-guards (2) · F-update (3) · G-triagem (11).
+- **11/11 · auditoria externa nº 2 (contraprova)**:
+  docs/VALIDACAO-PONTO-A-PONTO-V9.md — 23 pontos verificados contra o
+  repo vivo (11 ✔ · 6 ⚠ · 5 ✖ desatualizados); **baseline de cobertura
+  MEDIDO: 68%** (docs/COBERTURA-BASELINE-2026-11-11.txt) e plano
+  **89% em F0–F3** (F0 = gate no CI floor 66% já na tag; F2 usa o
+  teste das 110 rotas do url_map, que também fecha o item de DNS
+  rebinding da auditoria). Melhorias de segurança aceitas (sensível
+  por ferramenta, Host/Origin, segredo por webhook no header) entram
+  no lote 5.
 
 ### P0.1 — Queimar a dívida de portabilidade (43 testes) · NOVO
 - `docs/PORTABILIDADE.md` lista cada teste com causa e prioridade;
