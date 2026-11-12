@@ -1935,30 +1935,32 @@ def T81_update_end_to_end_v3110_local():
         dur = time.time() - t0
         texto = " ".join(out)
         assert rc == 0 and dur < 5, texto
-        assert nova in texto and "itens atualizados" in texto
+        assert nova in texto and "itens atualizados" in texto, texto[:400]
         assert (dest / "pluto" / "__init__.py").read_text(
             encoding="utf-8") == f'VERSION = "{nova.lstrip("v")}"'
         assert (dest / "data" / "conversas.json").read_text(
-            encoding="utf-8") == "[1,2,3]"           # dados sobrevivem
-        assert not (dest / "data" / "do-repo.txt").exists()
-        assert (dest / ".venv" / "bin").exists()
+            encoding="utf-8") == "[1,2,3]", "dados não sobreviveram"  # dados
+        assert not (dest / "data" / "do-repo.txt").exists(), \
+            "data/ do repo vazou p/ a instalação"
+        assert (dest / ".venv" / "bin").exists(), ".venv não preservado"
         assert (dest / "pluto" / "cli.py").read_text(
-            encoding="utf-8") == "# velho"           # não apaga local
+            encoding="utf-8") == "# velho", "arquivo local apagado"
 
         # --check avisa e NÃO aplica
         (dest / "pluto" / "__init__.py").unlink()
         out2 = []
         assert up.run(check_only=True, assume_yes=True,
                       print_fn=out2.append) == 0
-        assert "há atualização" in " ".join(out2)
-        assert not (dest / "pluto" / "__init__.py").exists()
+        assert "há atualização" in " ".join(out2), out2
+        assert not (dest / "pluto" / "__init__.py").exists(), \
+            "--check aplicou a atualização!"
 
         # só há versão MAIS VELHA: não faz nada
-        up.TAGS_API = f"file://{tmp}/tags-velhas.json"
+        up.TAGS_API = (tmp / "tags-velhas.json").as_uri()
         out3 = []
         assert up.run(check_only=False, assume_yes=True,
-                      print_fn=out3.append) == 0
-        assert "mais recente" in " ".join(out3)
+                      print_fn=out3.append) == 0, out3
+        assert "mais recente" in " ".join(out3), out3
     finally:
         up.TAGS_API, up.ZIP_URL, up._project_root = _api, _zip, _root
 
