@@ -20,7 +20,8 @@
 O runner tem um guarda: nome na lista que não existe mais na suíte
 **falha o pipeline** (dívida com nome de teste apagado = lista mentindo).
 
-## Windows — 11 testes (era 38 — A ✔ lote 2 · B ✔ lote 3 · C+D ✔ lote 4 · E+F ✔ lote 5, 11/11/2026)
+## Windows — **ZERO dívida** (P0.1 · lote 6, 11/11/2026)
+(era 38 — A ✔ lote 2 · B ✔ lote 3 · C+D ✔ lote 4 · E+F ✔ lote 5 · G ✔ lote 6)
 
 Causas confirmadas na 1ª execução (log do job), agrupadas:
 
@@ -109,8 +110,17 @@ o shell; `=`/`"` no 1º token → "pulado" é lógica pura).
 | T177/T178: venv falsa no layout POSIX (`bin/python`) — o produto já era OS-aware (`Scripts/python.exe`), o teste é que não era | layout por SO no fixture + asserts do launcher por SO (`pluto` shebang × `pluto.bat`) |
 | 🐛 produto (achado na porta): no Windows o fallback manual cria `pluto.bat`, mas a idempotência só checava `pluto.exe` → a autocura rodava `pip install -e .` a CADA chamada | `garantir_entry_points` considera `pluto.bat` (update.py) |
 
-### G. Demais (11) — triar na 1ª porta
-T55 · T65 · T124 · T141 · T142 · T172 · T183 · T192 · T213 · T216 · T236.
+### G. Demais — ✔ PORTADO (P0.1 · lote 6)
+A triagem revelou que o grupo era 3 famílias já conhecidas + 1 hookup:
+
+| Teste | Causa | Correção |
+|---|---|---|
+| T55 · T65 | `_skill_conteudo` → `read_skill_md` com barra literal — **já curados pelo fix do lote 3** (só saíram da lista agora) | — |
+| T124 · T142 · T183 · T192 · T213 · T216 | pinos de modo 600/700 (chmod é no-op no Windows: st_mode reflete só o read-only) | helper `_modo_exclusivo_dono` (POSIX exige o modo; no Windows a proteção é a ACL do perfil — backlog do release) |
+| T141 · T236 | `bash -c` com env-prefixo `VAR=x cmd` (sintaxe POSIX) + migração de HOME que no Windows lê USERPROFILE + alias de venv só no layout `bin/` | `env={**os.environ, …}` portátil · HOME **e** USERPROFILE no falso · `Scripts/*.exe` no `_pluto_bin`/`_hermes_bin`/alias |
+| T172 | `os.kill(pid, 0)` no Windows TERMINA o processo (o mesmo pecado do T171) + fake n8n sh (já portado no lote 2) | `plataforma.liveness` |
+
+A suíte agora roda **262/262 no Windows** (nenhum pulado).
 
 ## macOS — **ZERO dívida** (P0.1 · lote 4, 10/11/2026)
 
@@ -131,7 +141,8 @@ A suíte agora roda **261/261 no macOS** (nenhum pulado).
 3. ~~Grupo B do Windows~~ ✔ lote 3 — 11 testes + 5 bugs de produto;
 4. ~~Grupo C+D~~ ✔ lote 4 — macOS em ZERO; win 22→16;
 5. ~~E-guards + F-update~~ ✔ lote 5 — + url_map: 21 rotas sem auth;
-6. Resto: G-triagem (11) — último lote.
+6. ~~G-triagem (11)~~ ✔ lote 6 — **P0.1 FECHADO: 0 pulados em
+   Windows E macOS** (era 38·5 em 07/11).
 
 *docs/PORTABILIDADE.md · V9.0.0 P0 · fonte: run 42340204729 (logs dos
 jobs windows-latest/macos-latest, 07/11/2026). Atualizar a cada porta.*

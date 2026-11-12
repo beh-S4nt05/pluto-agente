@@ -410,10 +410,13 @@ projetos/rpg/
   com veredito JSON validado).
 - **RF-INF-03** Portabilidade (`docs/PORTABILIDADE.md`): matriz de
   dívida declarada — `_NAO_PORTADOS` por SO, visível na suíte
-  (⏭ pulados listados). **Dívida atual: 11 (windows) · 0 (macos) —
-  queimando no P0.1 (lotes 1–4 como acima; lote 5: E+F ✔ +
-  auditoria nº 2: 21 rotas de API que burlavam a auth agora
-  @protected, com inventário do url_map provado pelo T262).**
+  **Dívida ZERO (P0.1 fechado 11/11/2026: 0 pulados em Windows e
+  macOS — era 38·5)**; no caminho: T107/deny 2 planos, grupo A + 5
+  bugs, grupo B + 5 bugs (escopo/menção de caminhos Windows no
+  produto), C+D (macOS zerado, digesto canônico nos 3 SOs), E+F +
+  auditoria nº 2 (21 rotas de API que burlavam a auth agora
+  @protected, inventário do url_map no T262), G (modos 600/700
+  OS-aware, env/alias portáteis, liveness).**
 - **RF-INF-04** Autostart reversível (systemd user · LaunchAgent ·
   .bat), update em 1 comando, doctor, backups, heartbeat.
 - **RF-INF-05** Grafo de código (v4.4.0): AST puro → SQLite; "onde

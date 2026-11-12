@@ -32,9 +32,11 @@ def _pluto_bin() -> list[str]:
     — binário do venv de dev quando existe, senão o interpretador
     atual (portável: a suíte roda igual numa instalação por zip,
     fora do layout ./.venv do repo)."""
-    cand = ROOT / ".venv" / "bin" / "pluto"
-    if cand.is_file():
-        return [str(cand)]
+    # P0.1 lote 6: layout do venv é por SO (bin/ × Scripts/)
+    for cand in (ROOT / ".venv" / "bin" / "pluto",
+                 ROOT / ".venv" / "Scripts" / "pluto.exe"):
+        if cand.is_file():
+            return [str(cand)]
     return [sys.executable, "-m", "pluto"]
 
 
@@ -42,9 +44,9 @@ def _hermes_bin() -> list[str]:
     """Alias legado `hermes` (console script do pyproject) — resolvido
     ao lado do binário que o _pluto_bin() escolheu (dev ou install)."""
     base = Path(_pluto_bin()[0]).parent
-    cand = base / "hermes"
-    if cand.is_file():
-        return [str(cand)]
+    for cand in (base / "hermes", base / "hermes.exe"):
+        if cand.is_file():
+            return [str(cand)]
     return [sys.executable, "-c",
             "import sys; from pluto.cli import main; sys.argv[0]='hermes'; main()"]
 
@@ -80,22 +82,33 @@ _SO = {"Linux": "linux", "Darwin": "macos",
        "Windows": "windows"}.get(_platform.system(), "outro")
 
 _NAO_PORTADOS: dict = {
-    "windows": {
-        "T55_skills_aplicadas_ao_pipeline",
-        "T65_integracao_skills_injecao_e_modelos",
-        "T124_provedores_externos_gratuitos",
-        "T141_renome_betterme_migracao_e_identidade",
-        "T142_telegram_token_allowlist_e_comandos",
-        "T172_fluxos_remover_tool_e_gui",
-        "T183_n8n_integracao_melhorada",
-        "T192_omniroute_gateway_local",
-        "T213_financas_sumup_sync_mock",
-        "T216_belvo_token_status_remover",
-        "T236_renome_pluto_v83",
-    },
+    "windows": set(),          # P0.1 lote 6: dívida Windows ZERO
     "macos": set(),          # P0.1 lote 4: dívida macOS ZERO
 }
 SKIPPED: list = []
+
+
+def _env_sem_data_dir(fake_home: Path) -> dict:
+    """Env p/ subprocesso de MIGRAÇÃO: HERANÇA COMPLETA (o python do
+    windows precisa de SYSTEMROOT etc.) + HOME/USERPROFILE falsos, MENOS
+    os PLUTO/BETTERME/HERMES_DATA_DIR — Config() daria preferência a
+    eles e a migração da home legada não rodaria."""
+    env = {**os.environ, "HOME": str(fake_home),
+           "USERPROFILE": str(fake_home)}
+    for k in ("PLUTO_DATA_DIR", "BETTERME_DATA_DIR", "HERMES_DATA_DIR"):
+        env.pop(k, None)
+    return env
+
+
+def _modo_exclusivo_dono(p, modo: int = 0o600) -> bool:
+    """chmod 600/700 é contrato POSIX: no Windows st_mode só reflete o
+    bit read-only (arquivos sempre 0o666, dirs 0o777) — a proteção
+    efetiva lá é a ACL do perfil do usuário (backlog do release, ver
+    T41 e docs/VALIDACAO-PONTO-A-PONTO-V9.md §1.4)."""
+    import stat as _st
+    if _SO == "windows":
+        return p.is_file() if modo == 0o600 else p.is_dir()
+    return _st.S_IMODE(p.stat().st_mode) == modo
 
 
 def fresh(**overrides) -> Config:
@@ -3719,7 +3732,6 @@ def T124_provedores_externos_gratuitos():
     """v3.17.0: registro de provedores SEM custo; get_client devolve
     externo+fallback; chave mora em secrets/ (600) e NUNCA em config."""
     import os as _os
-    import stat as _stat
     from pluto import llm_providers as LP
     from pluto.ollama_client import MockOllamaClient, OllamaClient, get_client
 
@@ -3752,7 +3764,7 @@ def T124_provedores_externos_gratuitos():
     # chave em secrets (600), fora do config.yaml
     cfg2 = fresh()
     arq = LP.salvar_key(cfg2, "groq", "gsk_TESTE-123")
-    assert arq.parent.name == "secrets" and _stat.S_IMODE(arq.stat().st_mode) == 0o600
+    assert arq.parent.name == "secrets" and _modo_exclusivo_dono(arq)
     assert LP.api_key(cfg2, "groq") == "gsk_TESTE-123"
     cfg2.update({"llm_provider": "groq"})           # cria/persiste config.yaml
     conteudo_cfg = cfg2.path.read_text(encoding="utf-8")
@@ -5622,13 +5634,15 @@ def T141_renome_betterme_migracao_e_identidade():
                  text=True, timeout=60)
     assert r2.returncode == 0 and _VER in r2.stdout
 
-    # env legado continua funcionando (HERMES_MOCK)
-    r3 = _sp.run(["bash", "-c",
-                  f"HERMES_MOCK=1 '{sys.executable}' -c "
-                  "'from pluto.config import Config; "
-                  "c=Config(data_dir=\"/home/user/.t141-env\"); "
-                  "print(1 if c.mock else 0)'"],
-                 capture_output=True, text=True, timeout=60)
+    # env legado continua funcionando (HERMES_MOCK) — env= é portátil
+    # (o prefixo "VAR=x cmd" é sintaxe de shell POSIX)
+    r3 = _sp.run([sys.executable, "-c",
+                  "from pluto.config import Config; "
+                  "c = Config(data_dir=__import__('tempfile')"
+                  ".mkdtemp(prefix='t141-env-')); "
+                  "print(1 if c.mock else 0)"],
+                capture_output=True, text=True, timeout=60,
+                env={**os.environ, "HERMES_MOCK": "1"})
     assert r3.returncode == 0 and r3.stdout.strip().endswith("1"), r3.stderr[-200:]
 
     # migração: HOME falso com ~/.hermes legado -> vira ~/.pluto
@@ -5645,7 +5659,7 @@ def T141_renome_betterme_migracao_e_identidade():
                       "from pluto.config import Config; "
                       "c = Config(); print(c.data_dir)"],
                       capture_output=True, text=True, timeout=60,
-                      env={**os.environ, "HOME": str(fake)})
+                      env=_env_sem_data_dir(fake))
         assert r4.returncode == 0, r4.stderr[-300:]
         assert str(fake / ".pluto") in r4.stdout
         assert (fake / ".pluto" / "memory.json").is_file()
@@ -5656,7 +5670,7 @@ def T141_renome_betterme_migracao_e_identidade():
                       "from pluto.config import Config; "
                       "c = Config(); print(c.data_dir)"],
                       capture_output=True, text=True, timeout=60,
-                      env={**os.environ, "HOME": str(fake)})
+                      env=_env_sem_data_dir(fake))
         assert r5.returncode == 0
     finally:
         shutil.rmtree(fake, ignore_errors=True)
@@ -5689,7 +5703,6 @@ class _CanalFake:
 def T142_telegram_token_allowlist_e_comandos():
     """v4.2.0 (PR#5): token do bot em secrets 600 (nunca no config),
     allowlist de chats, e o parser de comandos compartilhado."""
-    import stat as _stat
     from pluto import telegram_gw as TG
     from pluto.gateway import processar_comando
 
@@ -5697,7 +5710,7 @@ def T142_telegram_token_allowlist_e_comandos():
     assert TG.token(cfg) == ""
     arq = TG.salvar_token(cfg, "123:ABC-token-do-bot")
     assert arq.parent.name == "secrets" and arq.name == "telegram.key"
-    assert _stat.S_IMODE(arq.stat().st_mode) == 0o600
+    assert _modo_exclusivo_dono(arq)
     assert "123:ABC" not in cfg.path.read_text(encoding="utf-8") \
         if cfg.path.exists() else True
     assert TG.token(cfg) == "123:ABC-token-do-bot"
@@ -6777,8 +6790,7 @@ def T172_fluxos_remover_tool_e_gui():
     """v5.1.0 (PR#11): remover apaga instalação+perfil (com processo
     rodando); tool fluxos_chamar no catálogo; rotas /fluxos e
     /api/fluxos/status no GUI."""
-    import os as _os
-    from pluto import fluxos
+    from pluto import fluxos, plataforma
     from pluto.tools import TOOL_NAMES, execute_tool
 
     cfg = fresh()
@@ -6790,11 +6802,9 @@ def T172_fluxos_remover_tool_e_gui():
     assert not fluxos._dir(cfg).exists()
     assert not fluxos._user_dir(cfg).exists()
     assert fluxos.rodando(cfg) is False
-    try:
-        _os.kill(r["pid"], 0)
-        raise AssertionError("processo sobreviveu ao remover")
-    except (ProcessLookupError, PermissionError):
-        pass
+    # liveness via plataforma: os.kill(pid, 0) no windows TERMINA o
+    # processo — nunca testar vida assim lá
+    assert not plataforma.liveness(r["pid"]), "processo sobreviveu ao remover"
     # webhook: URL local certa + payload íntegro (post injetado)
     ch = fluxos.chamar(cfg, "wf-42", {"a": 1},
                        _post=lambda u, p: {"ok": True, "url": u, "p": p})
@@ -7347,7 +7357,7 @@ def T183_n8n_integracao_melhorada():
     # API key: secrets 600, lida de volta
     f = F.salvar_apikey(cfg, "n8n_key_TESTE")
     assert f.name == "n8n.key"
-    assert f.stat().st_mode & 0o777 == 0o600
+    assert _modo_exclusivo_dono(f)
     assert F.ler_apikey(cfg) == "n8n_key_TESTE"
     # listar: degradação honesta (n8n parado)
     r = F.listar(cfg)
@@ -7933,7 +7943,7 @@ def T192_omniroute_gateway_local():
     assert st["endpoint"].endswith("/v1 · model 'auto'")
     # apikey 600 + lida de volta (mesmo convenio do llm_providers)
     f = OM.salvar_apikey(cfg, "omni_key_T192")
-    assert f.stat().st_mode & 0o777 == 0o600
+    assert _modo_exclusivo_dono(f)
     assert OM.ler_apikey(cfg) == "omni_key_T192"
     assert f.name == "omniroute.key"     # REGISTRY.api_key acha o mesmo
     assert LP.api_key(cfg, "omniroute") == "omni_key_T192"
@@ -8562,18 +8572,29 @@ def T201_dossie_cli_e_gui():
         assert "## PLANO" in d["dossie"] and "## EVIDÊNCIA" in d["dossie"]
         r2 = c.get("/api/orchestrator/dossie/T9999")
         assert r2.get_json()["ok"] is False       # sem dossiê: ok False
-        # ── CLI
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            cli_main(["--data-dir", str(cfg.data_dir), "--mock",
-                      "dossie", "T0001"])
-        out = buf.getvalue()
-        assert "## PLANO" in out and "## ENTREGA" in out
-        buf2 = io.StringIO()
-        with contextlib.redirect_stdout(buf2):
-            cli_main(["--data-dir", str(cfg.data_dir), "--mock",
-                      "dossie", "T9999"])
-        assert "sem dossiê" in buf2.getvalue()
+        # ── CLI (cli_main roda EM-PROCESSO: _cfg() seta PLUTO_DATA_DIR
+        # no os.environ — snapshot/restore para não vazar p/ os testes
+        # seguintes; era a causa da migração do T236 "sumir")
+        _env_antes = {k: os.environ[k] for k in
+                      ("PLUTO_DATA_DIR", "PLUTO_MOCK") if k in os.environ}
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                cli_main(["--data-dir", str(cfg.data_dir), "--mock",
+                          "dossie", "T0001"])
+            out = buf.getvalue()
+            assert "## PLANO" in out and "## ENTREGA" in out
+            buf2 = io.StringIO()
+            with contextlib.redirect_stdout(buf2):
+                cli_main(["--data-dir", str(cfg.data_dir), "--mock",
+                          "dossie", "T9999"])
+            assert "sem dossiê" in buf2.getvalue()
+        finally:
+            for k in ("PLUTO_DATA_DIR", "PLUTO_MOCK"):
+                if k in _env_antes:
+                    os.environ[k] = _env_antes[k]
+                else:
+                    os.environ.pop(k, None)
     finally:
         orc.plan = _plan_orig
         orc.review = _review_orig
@@ -9124,7 +9145,6 @@ def T213_financas_sumup_sync_mock():
     entrada (falhou/cancelou nunca tocou a conta); 2ª sync não
     duplica; repasses são informativos, não lançados; chave em
     secrets/ 600 e ausente do retorno."""
-    import stat
     from pluto import financas as F
     from pluto.llm_providers import api_key
 
@@ -9151,8 +9171,7 @@ def T213_financas_sumup_sync_mock():
     assert "secrets" in msg and "600" in msg
     assert api_key(cfg, "sumup") == "sup3rs3cr3t"
     kp = Path(cfg.data_dir) / "secrets"
-    perms = stat.S_IMODE(kp.stat().st_mode)
-    assert perms == 0o700, oct(perms)
+    assert _modo_exclusivo_dono(kp, 0o700), oct(kp.stat().st_mode)
 
     r = F.sync_sumup(cfg, _get=_get)
     assert r["novas_entradas"] == 1 and r["transacoes_lidas"] == 3
@@ -9229,13 +9248,12 @@ def T216_belvo_token_status_remover():
     """v7.4.0: conector Belvo MCP — token em secrets/ 600 (nunca em
     config.yaml/logs), servidor MCP registrado com Bearer no header,
     status com handshake injetável, remoção limpa e guia honesto."""
-    import stat
     from pluto import belvo as B
 
     cfg = fresh()
     assert B.ler_token(cfg) == ""
     p = B.salvar_token(cfg, "tok-123", expira_min=60)
-    assert p.exists() and stat.S_IMODE(p.stat().st_mode) == 0o600
+    assert p.exists() and _modo_exclusivo_dono(p)
     assert B.ler_token(cfg) == "tok-123"
     entradas = [e for e in (cfg.mcp_servers or [])
                 if isinstance(e, dict) and e.get("name") == "belvo"]
@@ -10249,19 +10267,22 @@ def T236_renome_pluto_v83():
     assert "Pluto" in prompt and "Betterme" not in prompt
 
     # env legado BETTERME_MOCK continua funcionando (fallback)
-    _env_h = {"PATH": os.environ.get("PATH", ""),
-              "HOME": os.environ.get("HOME", "")}
-    r = _sp.run(["bash", "-c",
-                 f"BETTERME_MOCK=1 '{sys.executable}' -c "
-                 "'from pluto.config import Config; "
-                 "c = Config(data_dir=\"/home/user/.t236-env\"); "
-                 "print(1 if c.mock else 0)'"],
+    # env= portátil (prefixo "VAR=x cmd" é sintaxe POSIX); ambiente
+    # COMPLETO — o subprocesso do windows precisa de SYSTEMROOT etc.
+    _env_h = {**os.environ, "BETTERME_MOCK": "1"}
+    r = _sp.run([sys.executable, "-c",
+                 "from pluto.config import Config; "
+                 "c = Config(data_dir=__import__('tempfile')"
+                 ".mkdtemp(prefix='t236-env-')); "
+                 "print(1 if c.mock else 0)"],
                 capture_output=True, text=True, timeout=60, env=_env_h)
     assert r.returncode == 0 and r.stdout.strip().endswith("1"), r.stderr[-200:]
 
     # alias binário: `betterme --version` segue no ar (quando há venv)
-    venv_bm = ROOT / ".venv" / "bin" / "betterme"
-    if venv_bm.is_file():
+    venv_bm = next((c for c in (ROOT / ".venv" / "bin" / "betterme",
+                                ROOT / ".venv" / "Scripts" / "betterme.exe")
+                    if c.is_file()), None)
+    if venv_bm is not None:
         r3 = _sp.run([str(venv_bm), "--version"], capture_output=True,
                      text=True, timeout=60)
         assert r3.returncode == 0, r3.stderr[-200:]
@@ -10277,7 +10298,7 @@ def T236_renome_pluto_v83():
                       "from pluto.config import Config; "
                       "c = Config(); print(c.data_dir)"],
                      capture_output=True, text=True, timeout=60,
-                     env={**_env_h, "HOME": str(fake)})
+                     env=_env_sem_data_dir(fake))
         assert r4.returncode == 0, r4.stderr[-300:]
         assert str(fake / ".pluto") in r4.stdout
         assert (fake / ".pluto" / "memory.json").is_file()

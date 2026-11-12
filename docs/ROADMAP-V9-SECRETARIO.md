@@ -186,7 +186,7 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
 - **M5 → T260**: `pluto gates --instalar-hook` grava o hook pré-push
   (varredura bloqueia o push ANTES de sair; hook alheio preservado).
 
-### P0.1 — Queimar a dívida de portabilidade (39 únicos) · EM CURSO (lote 5/6)
+### P0.1 — Queimar a dívida de portabilidade (39 únicos) · ✅ FECHADO (11/11/2026)
 - **Lote 1 ✔ (10/11)**: T107-mac — bug REAL de segurança corrigido
   (deny nos dois planos: /etc→/private/etc não escapa) + prova de
   symlink na suíte. Restam 38 (37 win · 4 mac).
@@ -231,7 +231,16 @@ nível mínimo; o carregador filtra pelo cérebro ATIVO da sessão.
   enviam `X-Pluto-Token`; **T262** percorre o url_map com allowlist
   explícito (nova rota sem classificação = pipeline vermelho).
   Restam 11 (só G).
-- Lote final: G-triagem (11).
+- **Lote 6 ✔ (11/11)**: G (11) — T55/T65 já estavam curados pelo
+  `read_skill_md` do lote 3 (barra literal); 6 pinos de modo 600/700
+  viraram o helper `_modo_exclusivo_dono` (chmod é no-op no windows —
+  ACL é backlog do release); T141/T236 com env= portátil (o prefixo
+  `VAR=x cmd` é sintaxe POSIX), migração HOME+USERPROFILE e alias no
+  layout Scripts/; T172 com `plataforma.liveness` (os.kill(pid,0)
+  TERMINA processo no windows). **Dívida final: 0 pulados no Windows
+  · 0 no macOS** (era 38·5 em 07/11) — a suíte roda 262/262 nos 3 SOs
+  e no CI de 4 jobs. Restam só os backlog declarados: cobertura
+  F1–F3 (68% → 89%), ACL/keyring no Windows, E2E Ollama (DoD#6).
 - **11/11 · auditoria externa nº 2 (contraprova)**:
   docs/VALIDACAO-PONTO-A-PONTO-V9.md — 23 pontos verificados contra o
   repo vivo (11 ✔ · 6 ⚠ · 5 ✖ desatualizados); **baseline de cobertura
