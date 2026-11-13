@@ -38,6 +38,23 @@ class ApiOriginSecurityTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertNotIn("Access-Control-Allow-Origin", r.headers)
 
+    def test_scheme_mismatch_is_not_same_origin(self):
+        r = self.client.get(
+            "/api/perguntas",
+            headers={"Origin": "https://localhost", "Host": "localhost",
+                     "X-Pluto-Token": "phase1-test-token"},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertNotIn("Access-Control-Allow-Origin", r.headers)
+
+    def test_scheme_mismatch_post_requires_valid_token(self):
+        r = self.client.post(
+            "/api/tasks",
+            json={"text": "test"},
+            headers={"Origin": "https://localhost", "Host": "localhost"},
+        )
+        self.assertEqual(r.status_code, 403)
+
     def test_cross_origin_post_is_rejected(self):
         r = self.client.post(
             "/api/tasks",
