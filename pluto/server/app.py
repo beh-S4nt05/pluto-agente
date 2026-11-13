@@ -73,7 +73,10 @@ def create_app(cfg: Config) -> Flask:
         try:
             from urllib.parse import urlparse
             o = urlparse(origin)
-            return (o.netloc or "").lower() == (request.host or "").lower()
+            return (o.scheme.lower() == request.scheme.lower()
+                    and (o.netloc or "").lower() == (request.host or "").lower()
+                    and bool(o.hostname)
+                    and not o.username and not o.password)
         except ValueError:
             return False
 
