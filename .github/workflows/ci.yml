@@ -61,6 +61,9 @@ jobs:
         run: python tests/run_all.py
         timeout-minutes: 20
 
+      - name: "Regressão de segurança da API (Fase 1)"
+        run: python -m unittest discover -s tests -p "test_security_phase1.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 

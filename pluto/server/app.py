@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import hmac
 from functools import wraps
 from pathlib import Path
 
@@ -94,7 +95,7 @@ def create_app(cfg: Config) -> Flask:
                     or request.args.get("token")
                     or (request.get_json(silent=True) or {}).get("token")
                     or "")
-        if token and supplied == token:
+        if token and hmac.compare_digest(str(supplied), token):
             return None
         return jsonify({"ok": False,
                         "msg": "origem não permitida (cross-origin sem token)"}), 403
@@ -111,7 +112,7 @@ def create_app(cfg: Config) -> Flask:
                     or (request.get_json(silent=True) or {}).get("token")
                     or ""
                 )
-                if supplied != token:
+                if not hmac.compare_digest(str(supplied), token):
                     return jsonify({"ok": False, "msg": "token de acesso inválido"}), 401
             return fn(*args, **kwargs)
 
@@ -125,10 +126,16 @@ def create_app(cfg: Config) -> Flask:
             # CORS: a GUI pode ser servida dentro de iframes/previews com origem
             # opaca (Origin: null); sem estes cabeçalhos o navegador bloqueia a
             # leitura das respostas da API (a página abre, mas os fetch falham).
-            resp.headers["Access-Control-Allow-Origin"] = "*"
-            resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Pluto-Token, Authorization"
-            resp.headers["Access-Control-Max-Age"] = "86400"
+            # Não conceder leitura cross-origin de respostas sensíveis.
+            # A GUI oficial usa same-origin; previews com Origin null
+            # continuam sujeitos à autenticação das rotas protegidas.
+            origin = request.headers.get("Origin", "")
+            if origin and _same_origin(origin):
+                resp.headers["Access-Control-Allow-Origin"] = origin
+                resp.headers["Vary"] = "Origin"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+                resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Pluto-Token, Authorization"
+                resp.headers["Access-Control-Max-Age"] = "600"
         return resp
 
     # Responde às pré-checagens CORS (OPTIONS) de qualquer rota /api/*
