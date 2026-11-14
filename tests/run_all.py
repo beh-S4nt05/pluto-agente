@@ -891,7 +891,7 @@ def T33_cli_versao_e_doctor():
 
 @case
 def T34_anti_csrf_post_cross_origin():
-    """POST de origem estranha sem token = 403; mesma origem/null/curl passam."""
+    """POST cross-origin ou opaco sem token = 403; same-origin/curl passam."""
     cfg = fresh()
     c = _app(cfg)
     ok_body = {"input": "x", "when": "diário 07:00"}
@@ -901,9 +901,9 @@ def T34_anti_csrf_post_cross_origin():
     r = c.post("/api/schedules", json=ok_body,
                headers={"Origin": "http://localhost"})
     assert r.status_code == 200
-    # Origin null (iframe sandbox/preview) → passa
+    # Origin null (iframe sandbox/preview) é opaca e exige token.
     assert c.post("/api/schedules", json=ok_body,
-                  headers={"Origin": "null"}).status_code == 200
+                  headers={"Origin": "null"}).status_code == 403
     # Origin de site malicioso → 403
     assert c.post("/api/schedules", json=ok_body,
                   headers={"Origin": "https://evil.com"}).status_code == 403
@@ -912,6 +912,11 @@ def T34_anti_csrf_post_cross_origin():
     r = c.post("/api/schedules", json=ok_body,
                headers={"Origin": "https://evil.com", "X-Pluto-Token": "segredo"})
     assert r.status_code == 200
+    # Origem opaca autenticada passa no guard; não concede CORS.
+    r = c.post("/api/schedules", json=ok_body,
+               headers={"Origin": "null", "X-Pluto-Token": "segredo"})
+    assert r.status_code == 200
+    assert "Access-Control-Allow-Origin" not in r.headers
     # GET não é afetado pelo guard (só pelo token, se houver)
     assert c.get("/api/status", headers={"Origin": "https://evil.com",
                                          "X-Pluto-Token": "segredo"}).status_code == 200
