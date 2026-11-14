@@ -74,8 +74,8 @@ class ApiOriginSecurityTests(unittest.TestCase):
 
     def test_opaque_origin_post_with_token_passes_csrf_guard(self):
         r = self.client.post(
-            "/api/tasks",
-            json={"text": "test"},
+            "/api/pergunta/nonexistent-phase1",
+            json={"resposta": "test"},
             headers={"Origin": "null", "X-Pluto-Token": "phase1-test-token"},
         )
         self.assertNotEqual(r.status_code, 403)
