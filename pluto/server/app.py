@@ -67,9 +67,11 @@ def create_app(cfg: Config) -> Flask:
 
     # --------------------------------------------- anti-CSRF (v3.0.1)
     def _same_origin(origin: str) -> bool:
-        """Origin confere com o Host? ('null' = iframe sandbox/preview)."""
-        if not origin or origin == "null":
+        """Confere esquema e Host; origem opaca não é same-origin."""
+        if not origin:
             return True
+        if origin == "null":
+            return False
         try:
             from urllib.parse import urlparse
             o = urlparse(origin)
@@ -85,7 +87,7 @@ def create_app(cfg: Config) -> Flask:
         """POST de outra origem sem token = site malicioso dirigindo o agente.
 
         O navegador SEMPRE envia Origin em POSTs cross-origin; a GUI legítima
-        é same-origin (Origin == Host) ou roda em iframe sandbox (Origin null).
+        é same-origin (Origin == Host). Iframes com Origin null exigem token.
         curl/webhooks não enviam Origin — passam; quem usa token, passa.
         """
         if request.method != "POST" or not request.path.startswith("/api/"):
