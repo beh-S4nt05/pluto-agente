@@ -55,6 +55,31 @@ class ApiOriginSecurityTests(unittest.TestCase):
         )
         self.assertEqual(r.status_code, 403)
 
+    def test_opaque_origin_post_without_token_is_rejected(self):
+        r = self.client.post(
+            "/api/tasks",
+            json={"text": "test"},
+            headers={"Origin": "null"},
+        )
+        self.assertEqual(r.status_code, 403)
+        self.assertNotIn("Access-Control-Allow-Origin", r.headers)
+
+    def test_opaque_origin_read_never_grants_cors(self):
+        r = self.client.get(
+            "/api/perguntas",
+            headers={"Origin": "null", "X-Pluto-Token": "phase1-test-token"},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertNotIn("Access-Control-Allow-Origin", r.headers)
+
+    def test_opaque_origin_post_with_token_passes_csrf_guard(self):
+        r = self.client.post(
+            "/api/tasks",
+            json={"text": "test"},
+            headers={"Origin": "null", "X-Pluto-Token": "phase1-test-token"},
+        )
+        self.assertNotEqual(r.status_code, 403)
+
     def test_cross_origin_post_is_rejected(self):
         r = self.client.post(
             "/api/tasks",
