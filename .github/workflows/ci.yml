@@ -70,6 +70,9 @@ jobs:
       - name: "Regressão web_fetch — SSRF"
         run: python -m unittest discover -s tests -p "test_security_web_fetch.py" -v
 
+      - name: "Regressão web — fronteira de confiança"
+        run: python -m unittest discover -s tests -p "test_security_web_untrusted.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
