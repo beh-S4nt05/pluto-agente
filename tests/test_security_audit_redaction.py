@@ -18,7 +18,7 @@ class AuditRedactionTests(unittest.TestCase):
         for secret in ("top-secret", "private", "Bearer hidden", "pass123"):
             self.assertNotIn(secret, serialized)
         self.assertEqual(cleaned["path"], "[OMITTED]")
-        self.assertEqual(cleaned["nested"]["api_key"], "[REDACTED]")
+        self.assertEqual(cleaned["nested"], "[OMITTED]")
 
     def test_generic_payloads_and_urls_are_never_persisted(self):
         args = {"content": "my-private-token",
