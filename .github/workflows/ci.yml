@@ -73,6 +73,9 @@ jobs:
       - name: "Regressão web — fronteira de confiança"
         run: python -m unittest discover -s tests -p "test_security_web_untrusted.py" -v
 
+      - name: "Regressão auditoria — proteção de segredos"
+        run: python -m unittest discover -s tests -p "test_security_audit_redaction.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
