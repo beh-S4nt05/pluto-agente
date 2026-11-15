@@ -83,9 +83,21 @@ def _assert_zip_seguro(zf: zipfile.ZipFile, dest_dir: Path) -> None:
     """v3.14.2: defesa zip-slip — nenhum membro do zip pode escapar do
     diretório de destino (caminho absoluto ou com '..' é recusado)."""
     base = dest_dir.resolve()
-    for nome in zf.namelist():
+    seen = set()
+    total_size = 0
+    for info in zf.infolist():
+        nome = info.filename
+        if nome in seen:
+            raise RuntimeError(f"zip com entrada duplicada: {nome!r}")
+        seen.add(nome)
         if (dest_dir / nome).resolve() != base / nome.lstrip("/"):
             raise RuntimeError(f"zip com caminho inválido: {nome!r}")
+        # Symlinks inside a release archive can redirect extraction or copying.
+        if (info.create_system == 3 and (info.external_attr >> 16) & 0o170000 == 0o120000):
+            raise RuntimeError(f"zip com link simbólico: {nome!r}")
+        total_size += info.file_size
+        if info.file_size > 100 * 1024 * 1024 or total_size > 500 * 1024 * 1024:
+            raise RuntimeError("zip excede o limite de tamanho descompactado")
 
 
 def download(tag: str, dest_dir: Path) -> Path:
