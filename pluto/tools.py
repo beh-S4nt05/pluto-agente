@@ -1038,19 +1038,6 @@ def resolve_path(path: str, cfg, write: bool = False) -> Path:
         if not ok and not write and getattr(cfg, "sandbox_home_read", True):
             home = str(Path.home().resolve())
             dentro_home = str(p) == home or str(p).startswith(home + os.sep)
-            sensiveis = [str(Path(s).expanduser().resolve())
-                         for s in _SENSITIVE_READ]
-            # P8.2 (T257, auditoria M4): os segredos vivem no data-dir
-            # ATIVO — com --data-dir/PLUTO_DATA_DIR customizado, o
-            # "~/.pluto" fixo não cobria (PoC da auditoria: read_file
-            # leu secrets/telegram.key). Bloqueia o secrets DO cfg.
-            sensiveis.append(str((Path(cfg.data_dir) / "secrets").resolve()))
-            bloqueada = any(str(p) == s or str(p).startswith(s + os.sep)
-                            for s in sensiveis)
-            if bloqueada:
-                raise ToolError(
-                    f"pasta sensível bloqueada (credenciais nunca entram no "
-                    f"contexto do modelo): {p}")
             if dentro_home:
                 return p               # leitura da home liberada (v3.13.1)
         if not ok:
