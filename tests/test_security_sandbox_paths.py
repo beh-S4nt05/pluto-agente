@@ -49,6 +49,19 @@ class SensitivePathSandboxTests(unittest.TestCase):
         with self.assertRaises(tools.ToolError):
             tools.resolve_path(str(link), self.cfg)
 
+    def test_workspace_alias_is_normalized_before_allowlist(self):
+        with patch.object(tools, "scope_dir", return_value=None):
+            alias = self.root / "workspace-alias"
+            try:
+                alias.symlink_to(self.workdir, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("directory symlink unavailable on this platform")
+            self.cfg.workdir = alias
+            self.assertEqual(tools.resolve_path("notes.txt", self.cfg),
+                             self.public_file.resolve())
+            with self.assertRaises(tools.ToolError):
+                tools.resolve_path("pluto-data/secrets/token.key", self.cfg)
+
     def test_normal_workspace_read_still_allowed(self):
         self.assertEqual(tools.resolve_path(str(self.public_file), self.cfg),
                          self.public_file.resolve())
