@@ -1028,7 +1028,7 @@ def resolve_path(path: str, cfg, write: bool = False) -> Path:
                 raise ToolError(
                     f"pasta sensível bloqueada (credenciais nunca entram no "
                     f"contexto do modelo): {p}")
-        allowed = [str(cfg.workdir)]
+        allowed = [str(Path(cfg.workdir).expanduser().resolve())]
         # skills ficam fora do workspace, mas são leitura/escrita liberada
         for d in getattr(cfg, "skills_dirs", []):
             allowed.append(str(Path(d).resolve()))
