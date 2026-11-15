@@ -11,7 +11,10 @@ versão instalada → baixa o zip da tag → aplica sobre a instalação atual
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -101,12 +104,29 @@ def _assert_zip_seguro(zf: zipfile.ZipFile, dest_dir: Path) -> None:
             raise RuntimeError("zip excede o limite de tamanho descompactado")
 
 
-def download(tag: str, dest_dir: Path) -> Path:
-    """Baixa e extrai o zip da tag; devolve a raiz extraída."""
+def _verify_sha256(path: Path, expected: str) -> None:
+    """Verify a SHA-256 digest obtained independently of the archive."""
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", expected):
+        raise RuntimeError("SHA-256 esperado inválido (64 caracteres hexadecimais)")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if not hmac.compare_digest(digest.hexdigest(), expected.lower()):
+        raise RuntimeError("SHA-256 da atualização não corresponde ao esperado")
+
+
+def download(tag: str, dest_dir: Path, expected_sha256: str | None = None) -> Path:
+    """Download and verify a release ZIP before extraction (fail closed)."""
+    if expected_sha256 is None:
+        raise RuntimeError("atualização bloqueada: informe SHA-256 confiável via PLUTO_UPDATE_SHA256")
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256):
+        raise RuntimeError("SHA-256 esperado inválido (64 caracteres hexadecimais)")
     url = ZIP_URL.format(tag=tag)
     zpath = dest_dir / f"{tag}.zip"
     with urllib.request.urlopen(url, timeout=120) as r, zpath.open("wb") as f:
         shutil.copyfileobj(r, f)
+    _verify_sha256(zpath, expected_sha256)
     with zipfile.ZipFile(zpath) as zf:
         _assert_zip_seguro(zf, dest_dir)
         zf.extractall(dest_dir)
@@ -275,7 +295,11 @@ def run(check_only: bool = False, assume_yes: bool = False,
             return 1
     root = _project_root()
     with tempfile.TemporaryDirectory(prefix="pluto-update-") as tmp:
-        src = download(tag, Path(tmp))
+        try:
+            src = download(tag, Path(tmp), os.environ.get("PLUTO_UPDATE_SHA256"))
+        except (RuntimeError, OSError, zipfile.BadZipFile) as exc:
+            print_fn(f"✖ atualização não aplicada: {exc}")
+            return 1
         print_fn(f"  baixado e extraído: {tag}")
         apply_update(src, root, log=print_fn)
     garantir_entry_points(root, log=print_fn)
