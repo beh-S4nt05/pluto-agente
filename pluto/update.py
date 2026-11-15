@@ -126,6 +126,25 @@ def apply_update(src_root: Path, dest_root: Path,
     """Copia a nova versão sobre a instalação — preserva data/, .venv e
     .git. Devolve a lista de itens atualizados."""
     atualizados: list[str] = []
+    # Preflight the complete update before writing anything. A pre-existing
+    # symlink in the destination must never redirect copytree/copy2 outside.
+    for item in sorted(src_root.rglob("*")):
+        if item.is_symlink():
+            raise RuntimeError(f"atualização contém link simbólico: {item}")
+    for item in sorted(src_root.iterdir()):
+        nome = item.name
+        if nome in _PULA_DIRETORIOS or nome in _PULA_ARQUIVOS:
+            continue
+        relative_paths = [Path(nome)]
+        if item.is_dir():
+            relative_paths.extend(p.relative_to(src_root) for p in item.rglob("*"))
+        for relative in relative_paths:
+            target = dest_root / relative
+            for ancestor in (target, *target.parents):
+                if ancestor == dest_root.parent:
+                    break
+                if ancestor.is_symlink():
+                    raise RuntimeError(f"destino da atualização contém link simbólico: {ancestor}")
     for item in sorted(src_root.iterdir()):
         nome = item.name
         if nome in _PULA_DIRETORIOS or nome in _PULA_ARQUIVOS:
