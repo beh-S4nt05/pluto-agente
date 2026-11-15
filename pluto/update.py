@@ -116,10 +116,36 @@ def _verify_sha256(path: Path, expected: str) -> None:
         raise RuntimeError("SHA-256 da atualização não corresponde ao esperado")
 
 
+def _trusted_checksum(tag: str, root: Path) -> str | None:
+    """Resolve a digest from a locally provisioned trust manifest.
+
+    The manifest must be installed through an independent trusted channel;
+    downloading a checksum beside the archive would not authenticate it.
+    """
+    direct = os.environ.get("PLUTO_UPDATE_SHA256")
+    if direct is not None:
+        return direct
+    manifest = root / "data" / "update-checksums.json"
+    if not manifest.is_file() or manifest.is_symlink():
+        return None
+    try:
+        if manifest.stat().st_size > 64 * 1024:
+            return None
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return None
+        entry = payload.get(tag)
+        if isinstance(entry, str) and re.fullmatch(r"[0-9a-fA-F]{64}", entry):
+            return entry
+    except (OSError, ValueError, UnicodeError):
+        return None
+    return None
+
+
 def download(tag: str, dest_dir: Path, expected_sha256: str | None = None) -> Path:
     """Download and verify a release ZIP before extraction (fail closed)."""
     if expected_sha256 is None:
-        raise RuntimeError("atualização bloqueada: informe SHA-256 confiável via PLUTO_UPDATE_SHA256")
+        raise RuntimeError("atualização bloqueada: forneça PLUTO_UPDATE_SHA256 ou data/update-checksums.json confiável")
     if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256):
         raise RuntimeError("SHA-256 esperado inválido (64 caracteres hexadecimais)")
     url = ZIP_URL.format(tag=tag)
@@ -296,7 +322,7 @@ def run(check_only: bool = False, assume_yes: bool = False,
     root = _project_root()
     with tempfile.TemporaryDirectory(prefix="pluto-update-") as tmp:
         try:
-            src = download(tag, Path(tmp), os.environ.get("PLUTO_UPDATE_SHA256"))
+            src = download(tag, Path(tmp), _trusted_checksum(tag, root))
         except (RuntimeError, OSError, zipfile.BadZipFile) as exc:
             print_fn(f"✖ atualização não aplicada: {exc}")
             return 1
