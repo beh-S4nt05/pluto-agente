@@ -76,6 +76,9 @@ jobs:
       - name: "Regressão auditoria — proteção de segredos"
         run: python -m unittest discover -s tests -p "test_security_audit_redaction.py" -v
 
+      - name: "Regressão atualizador — arquivos ZIP inseguros"
+        run: python -m unittest discover -s tests -p "test_security_update_archive.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
