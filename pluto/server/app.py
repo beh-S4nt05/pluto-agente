@@ -84,13 +84,13 @@ def create_app(cfg: Config) -> Flask:
 
     @app.before_request
     def guard_cross_origin_posts():
-        """POST de outra origem sem token = site malicioso dirigindo o agente.
+        """Escritas de outra origem sem token = site malicioso dirigindo o agente.
 
-        O navegador SEMPRE envia Origin em POSTs cross-origin; a GUI legítima
+        Navegadores enviam Origin em requisições cross-origin; a GUI legítima
         é same-origin (Origin == Host). Iframes com Origin null exigem token.
         curl/webhooks não enviam Origin — passam; quem usa token, passa.
         """
-        if request.method != "POST" or not request.path.startswith("/api/"):
+        if request.method not in {"POST", "PUT", "PATCH", "DELETE"} or not request.path.startswith("/api/"):
             return None
         origin = request.headers.get("Origin", "")
         if _same_origin(origin):

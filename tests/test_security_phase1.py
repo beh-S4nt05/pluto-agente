@@ -80,6 +80,35 @@ class ApiOriginSecurityTests(unittest.TestCase):
         )
         self.assertNotEqual(r.status_code, 403)
 
+    def test_cross_origin_mutating_methods_are_blocked(self):
+        for method in ("PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                r = self.client.open(
+                    "/api/perguntas", method=method,
+                    headers={"Origin": "https://evil.example"},
+                )
+                self.assertEqual(r.status_code, 403)
+                self.assertNotIn("Access-Control-Allow-Origin", r.headers)
+
+    def test_same_origin_mutating_methods_reach_route_dispatch(self):
+        for method in ("PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                r = self.client.open(
+                    "/api/perguntas", method=method,
+                    headers={"Origin": "http://localhost", "Host": "localhost"},
+                )
+                self.assertEqual(r.status_code, 405)
+
+    def test_authenticated_cross_origin_mutating_methods_reach_dispatch(self):
+        for method in ("PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                r = self.client.open(
+                    "/api/perguntas", method=method,
+                    headers={"Origin": "https://evil.example",
+                             "X-Pluto-Token": "phase1-test-token"},
+                )
+                self.assertEqual(r.status_code, 405)
+
     def test_cross_origin_post_is_rejected(self):
         r = self.client.post(
             "/api/tasks",
