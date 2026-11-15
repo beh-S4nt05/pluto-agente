@@ -79,6 +79,9 @@ jobs:
       - name: "Regressão atualizador — arquivos ZIP inseguros"
         run: python -m unittest discover -s tests -p "test_security_update_archive.py" -v
 
+      - name: "Regressão atualizador — links no destino"
+        run: python -m unittest discover -s tests -p "test_security_update_destination.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
