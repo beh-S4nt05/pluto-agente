@@ -19,8 +19,8 @@ class WebUntrustedBoundaryTests(unittest.TestCase):
         html = ('<a class="result__a" href="https://example.com/">'
                 'Resultado externo</a>')
         response = SimpleNamespace(status_code=200, text=html)
-        with patch.object(tools, "_web_enabled", return_value=True), \
-             patch.object(tools.requests, "get", return_value=response):
+        with (patch.object(tools, "_web_enabled", return_value=True),
+              patch.object(tools.requests, "get", return_value=response)):
             result = tools.web_search({"query": "consulta"}, object())
         self.assertTrue(result.startswith("[PLUTO_WEB_UNTRUSTED_BEGIN]"))
         self.assertTrue(result.endswith("[PLUTO_WEB_UNTRUSTED_END]"))
