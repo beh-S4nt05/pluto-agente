@@ -1903,6 +1903,8 @@ def T81_update_end_to_end_v3110_local():
     (download REAL via file://), preserva data/ e .venv, não apaga
     arquivos locais, recusa downgrade e é rápido."""
     import zipfile as _zf
+    import hashlib as _hashlib
+    import os as _os
     from pluto import update as up
     from pluto.config import VERSION as _V
 
@@ -1942,6 +1944,9 @@ def T81_update_end_to_end_v3110_local():
     (dest / ".venv" / "bin").write_text("x", encoding="utf-8")
 
     _api, _zip, _root = up.TAGS_API, up.ZIP_URL, up._project_root
+    _old_sha = _os.environ.get("PLUTO_UPDATE_SHA256")
+    _os.environ["PLUTO_UPDATE_SHA256"] = _hashlib.sha256(
+        (tmp / f"{nova}.zip").read_bytes()).hexdigest()
     try:
         # as_uri(): no windows f"file://{tmp}/..." não é URL válida
         up.TAGS_API = (tmp / "tags.json").as_uri()
@@ -1981,6 +1986,10 @@ def T81_update_end_to_end_v3110_local():
         assert "mais recente" in " ".join(out3), out3
     finally:
         up.TAGS_API, up.ZIP_URL, up._project_root = _api, _zip, _root
+        if _old_sha is None:
+            _os.environ.pop("PLUTO_UPDATE_SHA256", None)
+        else:
+            _os.environ["PLUTO_UPDATE_SHA256"] = _old_sha
 
 
 @case
