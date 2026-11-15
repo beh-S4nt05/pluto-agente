@@ -17,8 +17,24 @@ class AuditRedactionTests(unittest.TestCase):
         serialized = json.dumps(cleaned)
         for secret in ("top-secret", "private", "Bearer hidden", "pass123"):
             self.assertNotIn(secret, serialized)
-        self.assertEqual(cleaned["path"], "notes.txt")
-        self.assertEqual(cleaned["nested"]["api_key"], "[REDACTED]")
+        self.assertEqual(cleaned["path"], "[OMITTED]")
+        self.assertEqual(cleaned["nested"], "[OMITTED]")
+
+    def test_generic_payloads_and_urls_are_never_persisted(self):
+        args = {"content": "my-private-token",
+                "command": "curl https://example.com/?token=secret",
+                "url": "https://example.com/?api_key=hidden",
+                "texto": "sensitive personal data",
+                "action": "status", "timeout": 20,
+                "mode": "value with spaces"}
+        cleaned = audit._chop(args)
+        serialized = json.dumps(cleaned)
+        for secret in ("my-private-token", "secret", "hidden",
+                       "sensitive personal data"):
+            self.assertNotIn(secret, serialized)
+        self.assertEqual(cleaned["action"], "status")
+        self.assertEqual(cleaned["timeout"], 20)
+        self.assertEqual(cleaned["mode"], "[OMITTED]")
 
     def test_audit_does_not_persist_tool_output(self):
         with tempfile.TemporaryDirectory() as tmp:

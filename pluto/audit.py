@@ -63,10 +63,29 @@ def _redact_value(value, depth: int = 0):
     return str(value)[:200]
 
 
+_AUDIT_SAFE_FIELDS = {"action", "timeout", "limit", "offset", "count",
+                      "mode", "format", "dry_run", "recursive"}
+
+
 def _chop(args) -> dict:
+    """Persist only safe scalar metadata, never arbitrary agent payloads."""
     if not isinstance(args, dict):
         return {}
-    return _redact_value(args)
+    result = {}
+    for key, value in args.items():
+        name = str(key).lower()
+        if name in _AUDIT_SAFE_FIELDS and not _is_secret_key(name):
+            if isinstance(value, bool) or isinstance(value, (int, float)):
+                result[name] = value
+            elif (isinstance(value, str) and len(value) <= 32
+                  and value.isascii()
+                  and all(ch.isalnum() or ch in "_-" for ch in value)):
+                result[name] = value
+            else:
+                result[name] = "[OMITTED]"
+        else:
+            result[str(key)[:32]] = "[REDACTED]" if _is_secret_key(name) else "[OMITTED]"
+    return result
 
 
 def query(cfg, agent: str = "", tool: str = "", limit: int = 100,
