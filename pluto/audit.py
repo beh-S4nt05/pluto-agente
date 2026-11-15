@@ -29,7 +29,7 @@ def log(cfg, agent: str, tool: str, args: dict | None, ok: bool,
                 "ok": bool(ok),
                 "duration_ms": int(duration_ms),
                 "source": str(source)[:24],
-                "output": str(output or "")[:MAX_OUTPUT_CHARS],
+                "output": "[OMITTED: tool output not persisted]",
             }
             with path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
