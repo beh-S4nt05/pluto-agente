@@ -40,9 +40,9 @@ class WebFetchSsrfTests(unittest.TestCase):
 
     def test_redirect_is_not_followed(self):
         response = SimpleNamespace(status_code=302, close=lambda: None)
-        with patch.object(tools, "_web_enabled", return_value=True), \\
-             patch.object(tools, "_web_fetch_public_url", return_value=True), \\
-             patch.object(tools.requests, "get", return_value=response) as get:
+        with (patch.object(tools, "_web_enabled", return_value=True),
+              patch.object(tools, "_web_fetch_public_url", return_value=True),
+              patch.object(tools.requests, "get", return_value=response) as get):
             result = tools.web_fetch({"url": "https://example.com"}, self.cfg)
         self.assertIn("BLOQUEADO", result)
         self.assertFalse(get.call_args.kwargs["allow_redirects"])
