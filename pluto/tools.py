@@ -1319,7 +1319,7 @@ def web_search(args: dict, cfg) -> str:
         title = _html.unescape(re.sub(r"<[^>]+>", "", title)).strip()
         snip = snips[i - 1][:260] if i - 1 < len(snips) else ""
         lines.append(f"{i}. {title}\n   {_ddg_decode(url)}\n   {snip}")
-    return _truncate("\n".join(lines))
+    return _untrusted_web_content(_truncate("\n".join(lines)))
 
 
 def _web_fetch_public_url(url: str) -> bool:
@@ -1384,7 +1384,7 @@ def web_fetch(args: dict, cfg) -> str:
     except requests.RequestException as exc:
         return f"ERRO ao abrir {url}: {exc.__class__.__name__}: {exc}"
     text = _html_to_text(page) if "html" in ctype or "<html" in page[:500].lower() else page
-    return _truncate(f"{url}\n{'─' * 60}\n{text}", 8000)
+    return _untrusted_web_content(_truncate(f"{url}\n{'─' * 60}\n{text}", 8000))
 
 
 def lembrar(args: dict, cfg) -> str:
