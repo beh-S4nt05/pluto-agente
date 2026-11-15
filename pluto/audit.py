@@ -37,14 +37,36 @@ def log(cfg, agent: str, tool: str, args: dict | None, ok: bool,
         pass
 
 
+_SECRET_KEYS = ("password", "passwd", "token", "secret", "api_key",
+                "apikey", "authorization", "credential", "private_key",
+                "access_key", "client_secret", "cookie")
+_REDACTED = "[REDACTED]"
+
+
+def _is_secret_key(key: str) -> bool:
+    normalized = str(key).lower().replace("-", "_")
+    return any(part in normalized for part in _SECRET_KEYS)
+
+
+def _redact_value(value, depth: int = 0):
+    """Remove segredos de estruturas aninhadas antes de persistir auditoria."""
+    if depth >= 8:
+        return "[TRUNCATED]"
+    if isinstance(value, dict):
+        return {str(k)[:32]: (_REDACTED if _is_secret_key(k)
+                              else _redact_value(v, depth + 1))
+                for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_redact_value(v, depth + 1) for v in value[:30]]
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return str(value)[:200]
+
+
 def _chop(args) -> dict:
     if not isinstance(args, dict):
         return {}
-    out = {}
-    for k, v in args.items():
-        s = v if isinstance(v, (int, float, bool)) else str(v)
-        out[str(k)[:32]] = s if isinstance(s, (int, float, bool)) else s[:200]
-    return out
+    return _redact_value(args)
 
 
 def query(cfg, agent: str = "", tool: str = "", limit: int = 100,
