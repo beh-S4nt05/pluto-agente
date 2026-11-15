@@ -77,8 +77,9 @@ def _chop(args) -> dict:
         if name in _AUDIT_SAFE_FIELDS and not _is_secret_key(name):
             if isinstance(value, bool) or isinstance(value, (int, float)):
                 result[name] = value
-            elif isinstance(value, str) and len(value) <= 32 and value.isascii() \
-                    and all(ch.isalnum() or ch in "_-" for ch in value):
+            elif (isinstance(value, str) and len(value) <= 32
+                  and value.isascii()
+                  and all(ch.isalnum() or ch in "_-" for ch in value)):
                 result[name] = value
             else:
                 result[name] = "[OMITTED]"
