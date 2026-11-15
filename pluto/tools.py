@@ -1305,14 +1305,51 @@ def web_search(args: dict, cfg) -> str:
     return _truncate("\n".join(lines))
 
 
+def _web_fetch_public_url(url: str) -> bool:
+    """Bloqueia destinos locais/privados antes da busca HTTP do agente.
+
+    Esta validação não substitui pinagem de DNS/IP na conexão; a proteção
+    contra DNS rebinding exige transporte HTTP com resolução controlada.
+    """
+    import ipaddress
+    import socket
+
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    hostname = parsed.hostname.rstrip(".").lower()
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return False
+    try:
+        port = parsed.port
+        if port is not None and not (1 <= port <= 65535):
+            return False
+        addresses = socket.getaddrinfo(hostname, port or (443 if parsed.scheme == "https" else 80),
+                                       type=socket.SOCK_STREAM)
+        if not addresses:
+            return False
+        return all(ipaddress.ip_address(item[4][0]).is_global
+                   for item in addresses)
+    except (OSError, ValueError):
+        return False
+
+
 def web_fetch(args: dict, cfg) -> str:
     if not _web_enabled(cfg):
         return "ERRO: acesso à web desativado nas configurações (Ajustes → 🌐 acesso à web)."
     url = str(args.get("url", "")).strip()
     if not url.startswith(("http://", "https://")):
         return "ERRO: informe um endereço começando com http:// ou https://"
+    if not _web_fetch_public_url(url):
+        return "BLOQUEADO: destino web não público, inválido ou não resolvível."
     try:
-        r = requests.get(url, headers=WEB_HEADERS, timeout=20, stream=True)
+        r = requests.get(url, headers=WEB_HEADERS, timeout=20, stream=True,
+                         allow_redirects=False)
+        if 300 <= r.status_code < 400:
+            r.close()
+            return "BLOQUEADO: redirecionamento HTTP não permitido no web_fetch."
         r.raise_for_status()
         ctype = (r.headers.get("content-type") or "").lower()
         if ctype and not any(x in ctype for x in ("text/", "json", "xml", "html")):
