@@ -1018,6 +1018,16 @@ def resolve_path(path: str, cfg, write: bool = False) -> Path:
         p = (esc or cfg.workdir) / p   # v3.15.0: relativo → pasta do projeto
     p = p.resolve()
     if cfg.sandbox:
+        # Bloqueio absoluto: nem workspace, skills ou escopo ativo podem
+        # autorizar leitura de credenciais (inclusive por symlinks).
+        if not write:
+            sensiveis = [Path(s).expanduser().resolve()
+                         for s in _SENSITIVE_READ]
+            sensiveis.append((Path(cfg.data_dir) / "secrets").resolve())
+            if any(p == s or s in p.parents for s in sensiveis):
+                raise ToolError(
+                    f"pasta sensível bloqueada (credenciais nunca entram no "
+                    f"contexto do modelo): {p}")
         allowed = [str(cfg.workdir)]
         # skills ficam fora do workspace, mas são leitura/escrita liberada
         for d in getattr(cfg, "skills_dirs", []):
