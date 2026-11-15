@@ -17,7 +17,7 @@ class AuditRedactionTests(unittest.TestCase):
         serialized = json.dumps(cleaned)
         for secret in ("top-secret", "private", "Bearer hidden", "pass123"):
             self.assertNotIn(secret, serialized)
-        self.assertEqual(cleaned["path"], "notes.txt")
+        self.assertEqual(cleaned["path"], "[OMITTED]")
         self.assertEqual(cleaned["nested"]["api_key"], "[REDACTED]")
 
     def test_audit_does_not_persist_tool_output(self):
