@@ -227,6 +227,9 @@ def apply_update(src_root: Path, dest_root: Path,
                     break
                 if ancestor.is_symlink():
                     raise RuntimeError(f"destino da atualização contém link simbólico: {ancestor}")
+    # Snapshot every file that may be replaced before writing the first one.
+    files: list[tuple[Path, Path]] = []
+    dirs: list[Path] = []
     for item in sorted(src_root.iterdir()):
         nome = item.name
         if nome in _PULA_DIRETORIOS or nome in _PULA_ARQUIVOS:
@@ -236,14 +239,54 @@ def apply_update(src_root: Path, dest_root: Path,
                 rel = child.relative_to(src_root)
                 if any(part in {"__pycache__", ".venv"} for part in rel.parts) or child.suffix == ".pyc":
                     continue
-                target = dest_root / rel
                 if child.is_dir():
-                    target.mkdir(parents=True, exist_ok=True)
+                    dirs.append(dest_root / rel)
                 elif child.is_file():
-                    _copy_file_atomic(child, target)
+                    files.append((child, dest_root / rel))
         else:
-            _copy_file_atomic(item, dest_root / nome)
+            files.append((item, dest_root / nome))
         atualizados.append(nome)
+    with tempfile.TemporaryDirectory(prefix="pluto-rollback-") as backup_dir:
+        backup = Path(backup_dir)
+        existing: dict[Path, Path | None] = {}
+        for index, (_, target) in enumerate(files):
+            if target.exists():
+                if not target.is_file():
+                    raise RuntimeError(f"destino não é arquivo regular: {target}")
+                saved = backup / str(index)
+                shutil.copy2(target, saved)
+                existing[target] = saved
+            else:
+                existing[target] = None
+        created_dirs: list[Path] = []
+        written: list[Path] = []
+        try:
+            for directory in sorted(set(dirs + [t.parent for _, t in files]), key=lambda p: len(p.parts)):
+                if not directory.exists():
+                    directory.mkdir(parents=True, exist_ok=True)
+                    created_dirs.append(directory)
+            for source, target in files:
+                _copy_file_atomic(source, target)
+                written.append(target)
+        except Exception as original_error:
+            rollback_errors = []
+            for target in reversed(written):
+                try:
+                    saved = existing[target]
+                    if saved is None:
+                        target.unlink(missing_ok=True)
+                    else:
+                        _copy_file_atomic(saved, target)
+                except OSError as exc:
+                    rollback_errors.append(f"{target}: {exc}")
+            for directory in reversed(created_dirs):
+                try:
+                    directory.rmdir()
+                except OSError:
+                    pass
+            if rollback_errors:
+                raise RuntimeError("rollback incompleto: " + "; ".join(rollback_errors)) from original_error
+            raise
     log(f"  ✔ {len(atualizados)} itens atualizados: "
         + ", ".join(atualizados[:8]) + ("…" if len(atualizados) > 8 else ""))
     return atualizados
