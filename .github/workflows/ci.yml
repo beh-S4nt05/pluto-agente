@@ -97,6 +97,9 @@ jobs:
       - name: "Regressão atualizador — substituição atômica por arquivo"
         run: python -m unittest discover -s tests -p "test_security_update_atomic.py" -v
 
+      - name: "Regressão atualizador — rollback após falha"
+        run: python -m unittest discover -s tests -p "test_security_update_rollback.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
