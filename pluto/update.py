@@ -411,7 +411,11 @@ def run(check_only: bool = False, assume_yes: bool = False,
             print_fn(f"✖ atualização não aplicada: {exc}")
             return 1
         print_fn(f"  baixado e extraído: {tag}")
-        apply_update(src, root, log=print_fn)
+        try:
+            apply_update(src, root, log=print_fn)
+        except (RuntimeError, OSError) as exc:
+            print_fn(f"✖ atualização falhou durante a aplicação: {exc}")
+            return 1
     garantir_entry_points(root, log=print_fn)
     print_fn("\n  ✔ atualização aplicada. Se o `pluto server` estiver rodando,")
     print_fn("    reinicie-o (GUI: ⏹ Desligar → ▶ Ligar) para valer.")
