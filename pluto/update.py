@@ -164,9 +164,9 @@ def _copy_bounded(stream, target: Path, limit: int = _MAX_UPDATE_ZIP_BYTES) -> N
 
 
 def download(tag: str, dest_dir: Path, expected_sha256: str | None = None) -> Path:
+    """Download and verify a stable release ZIP before extraction (fail closed)."""
     if not isinstance(tag, str) or not _estavel(tag):
         raise RuntimeError("tag de atualização inválida: esperado vX.Y.Z")
-    """Download and verify a release ZIP before extraction (fail closed)."""
     if expected_sha256 is None:
         raise RuntimeError("atualização bloqueada: forneça PLUTO_UPDATE_SHA256 ou data/update-checksums.json confiável")
     if not re.fullmatch(r"[0-9a-fA-F]{64}", expected_sha256):
