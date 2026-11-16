@@ -142,6 +142,27 @@ def _trusted_checksum(tag: str, root: Path) -> str | None:
     return None
 
 
+_MAX_UPDATE_ZIP_BYTES = 200 * 1024 * 1024
+
+
+def _copy_bounded(stream, target: Path, limit: int = _MAX_UPDATE_ZIP_BYTES) -> None:
+    """Download at most limit bytes, rejecting oversized bodies regardless of headers."""
+    count = 0
+    try:
+        with target.open("wb") as output:
+            while True:
+                chunk = stream.read(min(1024 * 1024, limit - count + 1))
+                if not chunk:
+                    break
+                count += len(chunk)
+                if count > limit:
+                    raise RuntimeError("arquivo ZIP da atualização excede 200 MiB")
+                output.write(chunk)
+    except BaseException:
+        target.unlink(missing_ok=True)
+        raise
+
+
 def download(tag: str, dest_dir: Path, expected_sha256: str | None = None) -> Path:
     """Download and verify a release ZIP before extraction (fail closed)."""
     if expected_sha256 is None:
@@ -150,8 +171,8 @@ def download(tag: str, dest_dir: Path, expected_sha256: str | None = None) -> Pa
         raise RuntimeError("SHA-256 esperado inválido (64 caracteres hexadecimais)")
     url = ZIP_URL.format(tag=tag)
     zpath = dest_dir / f"{tag}.zip"
-    with urllib.request.urlopen(url, timeout=120) as r, zpath.open("wb") as f:
-        shutil.copyfileobj(r, f)
+    with urllib.request.urlopen(url, timeout=120) as response:
+        _copy_bounded(response, zpath)
     _verify_sha256(zpath, expected_sha256)
     with zipfile.ZipFile(zpath) as zf:
         _assert_zip_seguro(zf, dest_dir)

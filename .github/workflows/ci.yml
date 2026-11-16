@@ -88,6 +88,9 @@ jobs:
       - name: "Regressão atualizador — manifesto local confiável"
         run: python -m unittest discover -s tests -p "test_security_update_manifest.py" -v
 
+      - name: "Regressão atualizador — limite de download"
+        run: python -m unittest discover -s tests -p "test_security_update_download_limit.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
