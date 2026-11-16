@@ -268,7 +268,7 @@ def apply_update(src_root: Path, dest_root: Path,
             for source, target in files:
                 _copy_file_atomic(source, target)
                 written.append(target)
-        except Exception:
+        except Exception as original_error:
             rollback_errors = []
             for target in reversed(written):
                 try:
@@ -285,7 +285,7 @@ def apply_update(src_root: Path, dest_root: Path,
                 except OSError:
                     pass
             if rollback_errors:
-                raise RuntimeError("rollback incompleto: " + "; ".join(rollback_errors))
+                raise RuntimeError("rollback incompleto: " + "; ".join(rollback_errors)) from original_error
             raise
     log(f"  ✔ {len(atualizados)} itens atualizados: "
         + ", ".join(atualizados[:8]) + ("…" if len(atualizados) > 8 else ""))
