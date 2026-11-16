@@ -100,6 +100,9 @@ jobs:
       - name: "Regressão atualizador — rollback após falha"
         run: python -m unittest discover -s tests -p "test_security_update_rollback.py" -v
 
+      - name: "Regressão atualizador — falhas de aplicação"
+        run: python -m unittest discover -s tests -p "test_security_update_apply_errors.py" -v
+
       - name: "Portão 3/4 — varredura (segredos/dados pessoais)"
         run: pluto varredura --tudo
 
