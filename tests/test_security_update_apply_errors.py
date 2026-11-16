@@ -11,12 +11,14 @@ class UpdateApplyErrorTests(unittest.TestCase):
     def _run_with_error(self, error):
         messages = []
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("pluto.update.latest_tag", return_value="v999.0.0"), \\
-                 patch("pluto.update._project_root", return_value=Path(tmp)), \\
-                 patch("pluto.update._trusted_checksum", return_value="a" * 64), \\
-                 patch("pluto.update.download", return_value=Path(tmp)), \\
-                 patch("pluto.update.apply_update", side_effect=error), \\
-                 patch("pluto.update.garantir_entry_points") as entry:
+            with (
+                patch("pluto.update.latest_tag", return_value="v999.0.0"),
+                patch("pluto.update._project_root", return_value=Path(tmp)),
+                patch("pluto.update._trusted_checksum", return_value="a" * 64),
+                patch("pluto.update.download", return_value=Path(tmp)),
+                patch("pluto.update.apply_update", side_effect=error),
+                patch("pluto.update.garantir_entry_points") as entry,
+            ):
                 status = run(assume_yes=True, print_fn=messages.append)
                 entry.assert_not_called()
         return status, messages
