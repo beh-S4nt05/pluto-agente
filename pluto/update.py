@@ -190,6 +190,19 @@ def download(tag: str, dest_dir: Path, expected_sha256: str | None = None) -> Pa
     return raiz
 
 
+def _copy_file_atomic(source: Path, target: Path) -> None:
+    """Stage in destination directory and atomically replace a single file."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, staging = tempfile.mkstemp(prefix=".pluto-update-", dir=str(target.parent))
+    os.close(fd)
+    try:
+        shutil.copy2(source, staging)
+        os.replace(staging, target)
+    finally:
+        if os.path.exists(staging):
+            os.unlink(staging)
+
+
 def apply_update(src_root: Path, dest_root: Path,
                  log=print) -> list[str]:
     """Copia a nova versão sobre a instalação — preserva data/, .venv e
@@ -219,12 +232,17 @@ def apply_update(src_root: Path, dest_root: Path,
         if nome in _PULA_DIRETORIOS or nome in _PULA_ARQUIVOS:
             continue
         if item.is_dir():
-            shutil.copytree(item, dest_root / nome,
-                            dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns(
-                                "__pycache__", "*.pyc", ".venv"))
+            for child in sorted(item.rglob("*")):
+                rel = child.relative_to(src_root)
+                if any(part in {"__pycache__", ".venv"} for part in rel.parts) or child.suffix == ".pyc":
+                    continue
+                target = dest_root / rel
+                if child.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                elif child.is_file():
+                    _copy_file_atomic(child, target)
         else:
-            shutil.copy2(item, dest_root / nome)
+            _copy_file_atomic(item, dest_root / nome)
         atualizados.append(nome)
     log(f"  ✔ {len(atualizados)} itens atualizados: "
         + ", ".join(atualizados[:8]) + ("…" if len(atualizados) > 8 else ""))
