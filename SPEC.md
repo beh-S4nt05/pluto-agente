@@ -252,7 +252,7 @@ Nove camadas, cada uma com dono e orçamento:
 | 6 | Checkpoint de tarefa | `contexto.py` (P1) | `tasks/state/S%04d.json` atômico (tmp+replace): objetivo, critérios extraídos do pedido, plano, feitos, próximos, bloqueios; `retomar()` reconstrói sem reler o chat |
 | 7 | Diário de trabalho | `contexto.py` (P1) | `diario.jsonl` — 1 linha/evento; espelho Obsidian (escopo diario); alerta de truncamento registrado (fim da perda silenciosa) |
 | 8 | Contexto do node de projeto | `projetos.py` (P8) | `contexto.md` + `anotacoes.jsonl` datadas (ver 5.4) |
-| 9 | RAG / biblioteca | `knowledge.py`, `notebook.py`, `multimodal.py` | TF-IDF determinístico; fontes citadas; transcrições whisper.cpp locais |
+| 9 | RAG / biblioteca | `knowledge.py`, `notebook.py`, `multimodal.py` | TF-IDF determinístico; índice invertido persistido v1, leitura de índices legados, publicação por arquivo temporário exclusivo; fontes citadas; transcrições whisper.cpp locais |
 
 - **Verificação**: T243–T244 (P1) · T117 (compactação) · T30 (export) ·
   T253 (P8).
