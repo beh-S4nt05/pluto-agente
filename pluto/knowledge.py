@@ -18,6 +18,7 @@ import math
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -103,9 +104,26 @@ def indexar(cfg, pasta=None) -> dict:
             b["pos"] = pos
             pos += 1
     indice["total_blocos"] = pos
-    tmp = dest.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(indice, ensure_ascii=False), encoding="utf-8")
-    tmp.replace(dest)              # atômico
+    indice["postings_version"] = 1
+    indice["postings"] = _postings([
+        (arq, b) for arq, livro in indice["livros"].items()
+        for b in livro["blocos"]
+    ])
+    # Unique staging file; never overwrite the live index on publish failure.
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
+                                     dir=dest.parent, suffix=".tmp",
+                                     delete=False) as staged:
+        tmp = Path(staged.name)
+        try:
+            json.dump(indice, staged, ensure_ascii=False)
+        except BaseException:
+            staged.close()
+            tmp.unlink(missing_ok=True)
+            raise
+    try:
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)
     return {"livros": len(indice["livros"]), "blocos": pos,
             "tamanho": dest.stat().st_size if dest.exists() else 0}
 
@@ -121,6 +139,14 @@ def _carregar(cfg, pasta=None) -> dict:
     return {"livros": {}, "total_blocos": 0}
 
 
+def _postings(blocos: list) -> dict:
+    postings: dict[str, list[int]] = {}
+    for i, (_, bloco) in enumerate(blocos):
+        for token in sorted(set(_tokens(bloco["texto"]))):
+            postings.setdefault(token, []).append(i)
+    return postings
+
+
 def buscar(cfg, consulta: str, k: int = 3, max_chars: int = 1200,
             pasta=None) -> list[dict]:
     """Top-k blocos por TF-IDF; devolve [{texto, fonte, score}]."""
@@ -132,26 +158,27 @@ def buscar(cfg, consulta: str, k: int = 3, max_chars: int = 1200,
     q = set(_tokens(consulta))
     if not q:
         return []
-    # document frequency por termo
-    df: dict[str, int] = {}
-    tok_cache = []
-    for _, b in blocos:
-        toks = set(_tokens(b["texto"]))
-        tok_cache.append(toks)
-        for t in toks:
-            df[t] = df.get(t, 0) + 1
+    # Legacy indexes are still readable. New indexes tokenize only the query.
+    postings = indice.get("postings") if indice.get("postings_version") == 1 else None
+    if not isinstance(postings, dict):
+        postings = _postings(blocos)
     n = len(blocos)
+    scores: dict[int, float] = {}
+    for token in sorted(q):
+        ids = postings.get(token, [])
+        if not isinstance(ids, list) or not ids:
+            continue
+        weight = math.log(1 + n / len(ids))
+        for i in ids:
+            if type(i) is int and 0 <= i < n:
+                scores[i] = scores.get(i, 0.0) + weight
     resultados = []
-    for (arq, b), toks in zip(blocos, tok_cache):
-        if not (q & toks):
-            continue
-        score = sum(math.log(1 + n / df[t]) for t in q if t in toks)
-        if score <= 0:
-            continue
+    for i in sorted(scores):
+        arq, b = blocos[i]
         resultados.append({"texto": b["texto"][:max_chars],
                            "fonte": f"{Path(arq).name} (trecho "
                                     f"#{b['pos'] + 1})",
-                           "score": round(score, 3)})
+                           "score": round(scores[i], 3)})
     resultados.sort(key=lambda r: -r["score"])
     return resultados[:k]
 
