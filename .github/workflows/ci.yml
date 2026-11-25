@@ -61,6 +61,9 @@ jobs:
         run: python tests/run_all.py
         timeout-minutes: 20
 
+      - name: "Regressão de snapshot da memória"
+        run: python -m unittest discover -s tests -p "test_memory_snapshot.py" -v
+
       - name: "Regressão de segurança da API (Fase 1)"
         run: python -m unittest discover -s tests -p "test_security_phase1.py" -v
 
