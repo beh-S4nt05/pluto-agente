@@ -13,6 +13,7 @@ import json
 import re
 import threading
 import time
+import unicodedata
 import uuid
 from pathlib import Path
 
@@ -121,27 +122,24 @@ class MemoryStore:
 
     # ----------------------------------------------------------- prompt
     @staticmethod
+    def _words(text: str) -> set[str]:
+        normalized = unicodedata.normalize("NFKD", (text or "").lower())
+        normalized = "".join(c for c in normalized if c.isascii())
+        return {w for w in re.split(r"[^a-z0-9]+", normalized) if len(w) > 2}
+
+    @staticmethod
     def _score(query: str, text: str) -> int:
-        """Similaridade barata pergunta↔fato (overlap de palavras)."""
-        import unicodedata
-
-        def words(s: str) -> set[str]:
-            s = unicodedata.normalize("NFKD", s.lower())
-            s = "".join(c for c in s if c.isascii())
-            return {w for w in re.split(r"[^a-z0-9]+", s) if len(w) > 2}
-
-        q = words(query or "")
-        if not q:
-            return 0
-        t = words(text or "")
-        return len(q & t)
+        return len(MemoryStore._words(query) & MemoryStore._words(text))
 
     def relevant(self, query: str, k: int = 8) -> list[dict]:
         """Top-k fatos por relevância à pergunta (mais os 2 mais recentes)."""
-        facts = self.list_all()
+        return self._rank(self.list_all(), query, k)
+
+    def _rank(self, facts: list[dict], query: str, k: int) -> list[dict]:
         if not facts:
             return []
-        scored = sorted(facts, key=lambda f: self._score(query, f.get("text", "")),
+        q = self._words(query)
+        scored = sorted(facts, key=lambda f: len(q & self._words(f.get("text", ""))),
                         reverse=True)
         top = scored[:max(1, k)]
         # os 2 mais recentes sempre entram (contexto vivo)
@@ -170,8 +168,8 @@ class MemoryStore:
         note = ""
         if (query and total_chars > MAX_PROMPT_CHARS
                 and int(getattr(self.cfg, "memory_top_k", 8) or 8) > 0):
-            selected = self.relevant(
-                query, int(getattr(self.cfg, "memory_top_k", 8) or 8))
+            selected = self._rank(
+                facts, query, int(getattr(self.cfg, "memory_top_k", 8) or 8))
             note = f"  … ({len(facts)} fatos no total; mostrando os mais relevantes)\n"
         total = 0
         for f in selected:
