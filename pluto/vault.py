@@ -9,8 +9,8 @@ conversa; memory.json é curto por desenho (teto de prompt). A solução
 - **Escopos** (pastas): `memoria/` (fatos longos sobre o operador),
   `projetos/<nome>/`, `conhecimento/<dominio>/` e `aprendizado/`
   (progresso CBTA — níveis de proficiência e evidências).
-- Zero RAM: nada fica em memória — o agente LÊ o arquivo quando
-  precisa (mesmo padrão das skills/biblioteca) e o humano lê/edita
+- Cache local limitado de notas pequenas, invalidado por metadados;
+  o Markdown permanece a fonte de verdade e o humano lê/edita
   no Obsidian (arquivos .md puros, frontmatter YAML, wikilinks).
 - Notion, se o operador preferir: o mesmo modelo cabe no Notion MCP
   (mcp_servers) — mas o vault local é o padrão (local-first).
@@ -22,6 +22,9 @@ a fonte — nunca paráfrase do modelo.
 from __future__ import annotations
 
 import re
+import os
+import stat
+from functools import lru_cache
 import time
 import unicodedata
 from pathlib import Path
@@ -94,6 +97,35 @@ def _atualizar_moc(cfg, escopo: str) -> None:
                                   encoding="utf-8")
 
 
+_MAX_CACHE_BYTES = 128 * 1024
+
+
+def _read_note(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=128)
+def _cached_note(path: Path, fingerprint: tuple) -> str:
+    return _read_note(path)
+
+
+def _fingerprint(st) -> tuple:
+    return (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+def _notes(base: Path, alvo: Path):
+    """Never descend into linked directories or read linked files."""
+    if base.is_symlink() or alvo.is_symlink():
+        return
+    for root, dirs, files in os.walk(alvo, followlinks=False):
+        parent = Path(root)
+        dirs[:] = sorted(d for d in dirs if not (parent / d).is_symlink())
+        for name in files:
+            p = parent / name
+            if p.suffix == ".md" and not p.is_symlink():
+                yield p
+
+
 def buscar(cfg, termo: str, escopo: str = "") -> dict:
     """Busca verbatim nos .md do vault (ou de UM escopo). Devolve
     trecho + fonte — anti-alucinação por construção."""
@@ -107,10 +139,17 @@ def buscar(cfg, termo: str, escopo: str = "") -> dict:
             and _slug(escopo) in ESCOPOS else base)
     t = _slug(termo).replace("-", " ")
     achados = []
-    for p in sorted(alvo.rglob("*.md")):
+    for p in sorted(_notes(base, alvo)):
         try:
-            texto = p.read_text(encoding="utf-8")
-        except OSError:
+            st = p.lstat()
+            if not stat.S_ISREG(st.st_mode):
+                continue
+            fp = _fingerprint(st)
+            texto = (_cached_note(p.absolute(), fp)
+                     if st.st_size <= _MAX_CACHE_BYTES else _read_note(p))
+            if _fingerprint(p.lstat()) != fp:
+                continue
+        except (OSError, UnicodeError):
             continue
         if t in texto.lower() or t in _slug(p.stem).replace("-", " "):
             i = texto.lower().find(t)
