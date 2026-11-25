@@ -61,6 +61,12 @@ jobs:
         run: python tests/run_all.py
         timeout-minutes: 20
 
+      - name: "Regressão RAG — postings e compatibilidade"
+        run: python -m unittest discover -s tests -p "test_knowledge_postings.py" -v
+
+      - name: "Benchmark sintético — smoke"
+        run: python -m benchmarks.baseline --files 100 --repeat 3
+
       - name: "Regressão de segurança da API (Fase 1)"
         run: python -m unittest discover -s tests -p "test_security_phase1.py" -v
 
